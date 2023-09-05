@@ -36,7 +36,6 @@ class TensorData:
 
     def __single_to_multi_rank_translation(self, index: int) -> tuple:
         self.__out_of_bounds_index(index)
-
         coordinates = []
         for shape_dim in reversed(self.shape):
             temp_index = int(index % shape_dim)
@@ -48,7 +47,7 @@ class TensorData:
 
     def __multi_to_single_rank_translation(self, coords: tuple) -> int:
         self.__out_of_bounds_coords(coords)
-        return sum(dim * stride for dim, stride in zip(coords, self._strides))
+        return int(sum(dim * stride for dim, stride in zip(coords, self._strides)))
 
     def item(self):
         if self._item != None:
@@ -59,8 +58,10 @@ class TensorData:
             )
         return self._data[0]._item
 
-    def __getitem__(self, *coords: int):
-        pass
+    def __getitem__(self, coords):
+        self.__out_of_bounds_coords(coords)
+        return self._data[self.__multi_to_single_rank_translation(coords)]
 
-    def __setitem__(self, *coords: int):
-        pass
+    def __setitem__(self, coords , value):
+        self.__out_of_bounds_coords(coords)
+        self._data[self.__multi_to_single_rank_translation(coords)]._item = value
