@@ -2,18 +2,19 @@ import unittest
 import torch
 from tensordata import TensorData
 
+
 class TestTensorDataTest(unittest.TestCase):
     def test_getitem(self):
-        tensor = TensorData(2,3,4,5)
-        self.assertEqual(type(tensor[0,0,0,0]), TensorData)
-        self.assertEqual(tensor[1,2,3,4].item(), 0)
-        self.assertRaises(IndexError, lambda: tensor[2,0,0,0])
-        self.assertRaises(IndexError, lambda: tensor[0,0])
-    
+        tensor = TensorData(2, 3, 4, 5)
+        self.assertEqual(type(tensor[0, 0, 0, 0]), TensorData)
+        self.assertEqual(tensor[1, 2, 3, 4].item(), 0)
+        self.assertRaises(IndexError, lambda: tensor[2, 0, 0, 0])
+        self.assertRaises(IndexError, lambda: tensor[0, 0])
+
     def test_setitem(self):
-        tensor = TensorData(2,3,4,5)
-        tensor[0,0,0,0] = 47.0
-        self.assertEqual(type(tensor[0,0,0,0]), TensorData)
+        tensor = TensorData(2, 3, 4, 5)
+        tensor[0, 0, 0, 0] = 47.0
+        self.assertEqual(type(tensor[0, 0, 0, 0]), TensorData)
         self.assertEqual(tensor._data[0].item(), 47.0)
 
     def test_create_tensor_data_no_data(self):

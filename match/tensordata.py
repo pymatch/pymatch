@@ -62,6 +62,6 @@ class TensorData:
         self.__out_of_bounds_coords(coords)
         return self._data[self.__multi_to_single_rank_translation(coords)]
 
-    def __setitem__(self, coords , value):
+    def __setitem__(self, coords, value):
         self.__out_of_bounds_coords(coords)
         self._data[self.__multi_to_single_rank_translation(coords)]._item = value
