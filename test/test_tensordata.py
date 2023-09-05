@@ -4,6 +4,24 @@ from tensordata import TensorData
 
 
 class TestTensorDataTest(unittest.TestCase):
+    def test_create_tensor_data_no_data(self):
+        tensor = TensorData(5, 5, 0)
+        self.assertEqual(tensor._data, [])
+        self.assertEqual(tensor._item, None)
+        self.assertRaises(ValueError, lambda: tensor.item())
+
+    def test_create_tensor_data_singleton(self):
+        tensor = TensorData(value=47.0)
+        self.assertEqual(tensor.item(), 47.0)
+        self.assertEqual(tensor.shape, ())
+        self.assertEqual(tensor._data, [])
+
+    def test_create_tensor_data(self):
+        tensor = TensorData(5, 2, 4)
+        self.assertRaises(ValueError, lambda: tensor.item())
+        self.assertEqual(tensor._item, None)
+        self.assertEqual(tensor._data[0].item(), 0)
+
     def test_initialize_strides(self):
         tensor = TensorData(1, 2, 1)
         self.assertEqual(tensor._strides, (2, 1, 1))
