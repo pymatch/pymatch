@@ -58,3 +58,9 @@ class TensorData:
                 "only one element tensors can be converted into python scalars"
             )
         return self._data[0]._item
+
+    def __getitem__(self, *coords: int):
+        pass
+
+    def __setitem__(self, *coords: int):
+        pass
