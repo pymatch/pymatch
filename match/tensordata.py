@@ -1,4 +1,4 @@
-import itertools
+import itertools # check with prof clark
 
 class TensorData:
     def __init__(self, *size: int, value: float = 0.0):
