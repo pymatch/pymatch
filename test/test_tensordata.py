@@ -1,19 +1,67 @@
 import unittest
 import torch
-from tensordata import TensorData
+from match.tensordata import TensorData
 
 
 class TestTensorDataTest(unittest.TestCase):
-    def test_getitem(self):
+    def test_setitem_slice(self):
+        # make torch tensor
+        torch_tensor = torch.arange(1, 9).reshape(2, 4)
+        # make corresponding match tensor
+        match_tensor = TensorData(2, 4)
+        match_tensor._data = [TensorData(value=i+1) for i in range(8)]
+
+        torch_tensor[:, 1::2] = torch.zeros((2, 2))
+        match_tensor[:, 1::2] = TensorData(2, 2)
+
+        for x in range(2):
+            for y in range(4):
+                self.assertEqual(torch_tensor[x, y].item(), match_tensor[x, y].item())
+
+    def test_getitem_slice(self):
+        match_tensor = TensorData(2, 4)
+        match_tensor._data = [TensorData(value=i+1) for i in range(8)]
+        match_tensor_slice = match_tensor[:, 1]
+        self.assertEqual(match_tensor_slice.shape, (2,))
+        self.assertEqual(match_tensor_slice._data[0].item(), 2)
+        self.assertEqual(match_tensor_slice._data[1].item(), 6)
+
+        match_tensor_slice = match_tensor[:, 1::2]
+        self.assertEqual(match_tensor_slice.shape, (2, 2))
+        self.assertEqual(match_tensor_slice._data[0].item(), 2)
+        self.assertEqual(match_tensor_slice._data[1].item(), 4)
+        self.assertEqual(match_tensor_slice._data[2].item(), 6)
+        self.assertEqual(match_tensor_slice._data[3].item(), 8)
+
+    def test_getitem_reference(self):
+        tensor = TensorData(3, 3, 3)
+        tensor_subset = tensor[2, 0, :]
+        self.assertEqual(type(tensor_subset), TensorData)
+        self.assertEqual(tensor_subset.shape, (3,))
+        for i in range(3):
+            self.assertEqual(tensor_subset._data[i].item(), 0)
+
+        self.assertEqual(tensor._data[18].item(), 0)
+        tensor_subset[0] = 47
+        self.assertEqual(tensor_subset._data[0].item(), 47)
+        self.assertEqual(tensor._data[18].item(), 47)
+
+    def test_getitem_single(self):
         tensor = TensorData(2, 3, 4, 5)
         self.assertEqual(type(tensor[0, 0, 0, 0]), TensorData)
         self.assertEqual(tensor[1, 2, 3, 4].item(), 0)
         self.assertRaises(IndexError, lambda: tensor[2, 0, 0, 0])
         self.assertRaises(IndexError, lambda: tensor[0, 0])
 
-    def test_setitem(self):
+    def test_setitem_single_number(self):
         tensor = TensorData(2, 3, 4, 5)
         tensor[0, 0, 0, 0] = 47.0
+        self.assertEqual(type(tensor[0, 0, 0, 0]), TensorData)
+        self.assertEqual(tensor._data[0].item(), 47.0)
+
+    def test_setitem_single_tensordata(self):
+        tensor = TensorData(2, 3, 4, 5)
+        tensor[0, 0, 0, 0] = TensorData(value=47)
         self.assertEqual(type(tensor[0, 0, 0, 0]), TensorData)
         self.assertEqual(tensor._data[0].item(), 47.0)
 

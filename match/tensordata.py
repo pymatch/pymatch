@@ -1,4 +1,6 @@
-import itertools # check with prof clark
+import itertools
+import math
+
 
 class TensorData:
     def __init__(self, *size: int, value: float = 0.0):
@@ -60,16 +62,9 @@ class TensorData:
             )
         return self._data[0]._item
 
-    
-    def __getitem__(self, coords):
-        # go through each of items in the tuple and check if it is a `slice` object
-        # slice objects have start, stop, step, so the range of coordinates for that index is range(start, stop, step)
-        # original shape [5,3,6,13]
-        # [2:3, 5, 2:5:2, 9]
-        # [range(2,3), 5, range(2,5,2), 9]
-        # final shape = (1,2)
+    def __convert_slice_to_index_list(self, coords):
         output_shape = []
-        possible_indices = [] 
+        possible_indices = []
         for i, coordinate in enumerate(coords):
             if isinstance(coordinate, slice):
                 start = coordinate.start or 0
@@ -77,39 +72,75 @@ class TensorData:
                 step = coordinate.step or 1
                 possible_indices.append(range(start, stop, step))
                 # like convolution formula? [(W−K+2P)/S]+1
-                output_shape.append( ((stop-start)//step) )
+                output_shape.append(math.ceil((stop - start) / step))
             elif isinstance(coordinate, int):
                 # if int, we aren't goign to add to shape
                 # j.shape = [3,4,5]; j[:, 0, :].shape = [3,5], j[0, :, :] = [4,5]...and so on
                 possible_indices.append([coordinate])
             else:
                 raise ValueError("can only be ints or slices")
-            
+        return tuple(output_shape), possible_indices
+
+    def __getitem__(self, coords):
+        # go through each of items in the tuple and check if it is a `slice` object
+        # slice objects have start, stop, step, so the range of coordinates for that index is range(start, stop, step)
+        # original shape [5,3,6,13]
+        # [2:3, 5, 2:5:2, 9]
+        # [range(2,3), 5, range(2,5,2), 9]
+        # final shape = (1,2)
+        output_shape, possible_indices = self.__convert_slice_to_index_list(coords)
+
         if not output_shape:
             # output_shape is empty, [], if and only if all indices in `coords` were integers
             # indicating only one item should be retrieved
             self.__out_of_bounds_coords(coords)
             return self._data[self.__multi_to_single_rank_translation(coords)]
-        
+
         output_data = []
         for index in itertools.product(*possible_indices):
             self.__out_of_bounds_coords(index)
-            output_data.append(self._data[self.__multi_to_single_rank_translation(index)])
+            output_data.append(
+                self._data[self.__multi_to_single_rank_translation(index)]
+            )
 
         output_tensor = TensorData(*output_shape)
-        assert len(output_data) == len(output_tensor._data)
         output_tensor._data = output_data
         return output_tensor
 
     def __setitem__(self, coords, value):
-        self.__out_of_bounds_coords(coords)
-        self._data[self.__multi_to_single_rank_translation(coords)]._item = value
+        # setitem doesn't copy
+        # if we do j[1] = x, and j and x are both tensors, j will change, but if we change x, j will not change
+        if isinstance(value, list):
+            raise TypeError("can't assign a list to a TensorData")
+        if isinstance(coords, int):
+            coords = (coords,)
+
+        output_shape, possible_indices = self.__convert_slice_to_index_list(coords)
+
+        if not output_shape:
+            self.__out_of_bounds_coords(coords)
+            if isinstance(value, TensorData):
+                # value.item() will check for invalid gets
+                self._data[
+                    self.__multi_to_single_rank_translation(coords)
+                ]._item = value.item()
+            elif isinstance(value, int) or isinstance(value, float):
+                self._data[
+                    self.__multi_to_single_rank_translation(coords)
+                ]._item = value
+            else:
+                raise TypeError("invalid type to set value in tensor data")
+        else:
+            for i, index in enumerate(itertools.product(*possible_indices)):
+                self.__out_of_bounds_coords(index)
+                self._data[
+                    self.__multi_to_single_rank_translation(index)
+                ]._item = value._data[i]._item
 
     def __repr__(self):
         return self._data.__repr__() if self._item is None else self._item.__repr__()
 
 
-
 if __name__ == "__main__":
-    t = TensorData(2,2,2)
-    print(t.shape, t[:,1:,0].shape)
+    t = TensorData(2, 2, 2)
+    print(t.shape, t[:, 1:, 0].shape)
