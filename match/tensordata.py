@@ -67,7 +67,13 @@ class TensorData:
     def __convert_slice_to_index_list(self, coords):
         output_shape = []
         possible_indices = []
-        for i, coordinate in enumerate(coords):
+        for i in range(len(self.shape)):
+            if i >= len(coords):
+                possible_indices.append(range(self.shape[i]))
+                output_shape.append(self.shape[i])
+                continue
+
+            coordinate = coords[i]
             if isinstance(coordinate, slice):
                 start = coordinate.start or 0
                 stop = coordinate.stop or self.shape[i]
@@ -80,7 +86,8 @@ class TensorData:
                 # j.shape = [3,4,5]; j[:, 0, :].shape = [3,5], j[0, :, :] = [4,5]...and so on
                 possible_indices.append([coordinate])
             else:
-                raise ValueError("can only be ints or slices")
+                raise ValueError("can only be ints or slices") 
+               
         return output_shape, possible_indices
 
     def __getitem__(self, coords):
@@ -90,6 +97,9 @@ class TensorData:
         # [2:3, 5, 2:5:2, 9]
         # [range(2,3), 5, range(2,5,2), 9]
         # final shape = (1,2)
+        if not isinstance(coords, tuple):
+            coords = (coords,)
+
         output_shape, possible_indices = self.__convert_slice_to_index_list(coords)
 
         if not output_shape:
@@ -114,7 +124,8 @@ class TensorData:
         # if we do j[1] = x, and j and x are both tensors, j will change, but if we change x, j will not change
         if isinstance(value, list):
             raise TypeError("can't assign a list to a TensorData")
-        if isinstance(coords, int):
+        
+        if not isinstance(coords, tuple):
             coords = (coords,)
 
         output_shape, possible_indices = self.__convert_slice_to_index_list(coords)
