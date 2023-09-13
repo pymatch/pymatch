@@ -1,10 +1,12 @@
 import itertools
 import math
+from typing import Union
 
 
 class TensorData:
-    def __init__(self, *size: int, value: float = 0.0):
-        self.shape = size
+    def __init__(self, *size: int, value: float = 0.0, dtype: type = float):
+        self.shape: tuple[int] = size
+        self.dtype: type = dtype
         self.__initialize_tensor_data(value)
         self.__initialize_strides()
 
@@ -79,7 +81,7 @@ class TensorData:
                 possible_indices.append([coordinate])
             else:
                 raise ValueError("can only be ints or slices")
-        return tuple(output_shape), possible_indices
+        return output_shape, possible_indices
 
     def __getitem__(self, coords):
         # go through each of items in the tuple and check if it is a `slice` object
@@ -139,8 +141,3 @@ class TensorData:
 
     def __repr__(self):
         return self._data.__repr__() if self._item is None else self._item.__repr__()
-
-
-if __name__ == "__main__":
-    t = TensorData(2, 2, 2)
-    print(t.shape, t[:, 1:, 0].shape)

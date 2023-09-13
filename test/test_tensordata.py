@@ -1,6 +1,6 @@
 import unittest
 import torch
-from match.tensordata import TensorData
+from tensordata import TensorData
 
 
 class TestTensorDataTest(unittest.TestCase):
