@@ -137,10 +137,10 @@ class TensorData:
                 self._data[
                     self.__multi_to_single_rank_translation(coords)
                 ]._item = value.item()
-            elif isinstance(value, int) or isinstance(value, float):
+            elif isinstance(value, (int, float)):
                 self._data[
                     self.__multi_to_single_rank_translation(coords)
-                ]._item = value
+                ]._item = value # self.dtype(value)
             else:
                 raise TypeError("invalid type to set value in tensor data")
         else:
