@@ -3,26 +3,19 @@ import torch
 from match.tensordata import TensorData
 import itertools
 
-"""
-# %%
-def almostEqual(matrix: Matrix, tensor: Tensor, check_grad=False) -> bool:
-    m = to_tensor(matrix, get_grad=check_grad)
-    t = Tensor(tensor.grad) if check_grad else tensor
+
+def to_tensor(match_tensor: TensorData) -> torch.Tensor:
+    torch_tensor = torch.Tensor(size=match_tensor.shape).float()
+    for index in itertools.product(*[range(dim) for dim in match_tensor.shape]):
+        torch_tensor[index] = match_tensor[index].item()
+    return torch_tensor
+
+def almost_equal(match_tensor: TensorData, torch_tensor: torch.Tensor) -> bool:
+    m = to_tensor(match_tensor)
+    t = torch_tensor.float()
     if t.ndim == 1:
         m.squeeze_()
     return torch.allclose(m, t, rtol=1e-02, atol=1e-05)
-
-
-# %%
-def to_tensor(matrix: Matrix, requires_grad=False, get_grad=False) -> Tensor:
-    mdata = matrix.grad.vals if get_grad else matrix.data.vals
-    return torch.tensor(mdata, requires_grad=requires_grad)
-
-be in pymatch directory
- python3 -m unittest  
-
-"""
-
 
 class TestTensorDataTest(unittest.TestCase):
     def test_broadcast(self):
@@ -36,22 +29,7 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor_broadcasted = match_tensor.broadcast(2, 2, 3, 3, 3)
 
         self.assertEqual(match_tensor_broadcasted.shape, (2, 2, 3, 3, 3))
-
-        print(torch_tensor_broadcasted)
-        print(match_tensor_broadcasted)
-
-        for (
-            x,
-            y,
-            z,
-            a,
-            b,
-        ) in itertools.product(range(2), range(2), range(3), range(3), range(3)):
-            self.assertEqual(
-                torch_tensor_broadcasted[x, y, z, a, b].item(),
-                match_tensor_broadcasted[x, y, z, a, b].item(),
-            )
-
+        self.assertTrue(almost_equal(match_tensor_broadcasted, torch_tensor_broadcasted))
 
     def test_getitem_partial_index(self):
         # make torch tensor
@@ -64,13 +42,7 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor_slice = match_tensor[1:]
 
         self.assertEqual(match_tensor_slice.shape, (2, 3, 3))
-        for x in range(2):
-            for y in range(3):
-                for z in range(3):
-                    self.assertEqual(
-                        torch_tensor_slice[x, y, z].item(),
-                        match_tensor_slice[x, y, z].item(),
-                    )
+        self.assertTrue(almost_equal(match_tensor_slice, torch_tensor_slice))
 
     def test_setitem_single_value_index(self):
         # make torch tensor
@@ -82,13 +54,7 @@ class TestTensorDataTest(unittest.TestCase):
         torch_tensor[2:] = 0
         match_tensor[2:] = 0
 
-        for x in range(2):
-            for y in range(3):
-                for z in range(3):
-                    self.assertEqual(
-                        torch_tensor[x, y, z].item(),
-                        match_tensor[x, y, z].item(),
-                    )
+        self.assertTrue(almost_equal(match_tensor, torch_tensor))
 
     def test_setitem_partial_index(self):
         # make torch tensor
@@ -100,13 +66,7 @@ class TestTensorDataTest(unittest.TestCase):
         torch_tensor[2:] = torch.zeros((1, 3, 3))
         match_tensor[2:] = TensorData(1, 3, 3)
 
-        for x in range(2):
-            for y in range(3):
-                for z in range(3):
-                    self.assertEqual(
-                        torch_tensor[x, y, z].item(),
-                        match_tensor[x, y, z].item(),
-                    )
+        self.assertTrue(almost_equal(match_tensor, torch_tensor))
 
     def test_setitem_slice(self):
         # make torch tensor
@@ -118,9 +78,7 @@ class TestTensorDataTest(unittest.TestCase):
         torch_tensor[:, 1::2] = torch.zeros((2, 2))
         match_tensor[:, 1::2] = TensorData(2, 2)
 
-        for x in range(2):
-            for y in range(4):
-                self.assertEqual(torch_tensor[x, y].item(), match_tensor[x, y].item())
+        self.assertTrue(almost_equal(match_tensor, torch_tensor))
 
     def test_getitem_slice(self):
         match_tensor = TensorData(2, 4)
