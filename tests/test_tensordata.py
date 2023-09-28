@@ -10,12 +10,14 @@ def to_tensor(match_tensor: TensorData) -> torch.Tensor:
         torch_tensor[index] = match_tensor[index].item()
     return torch_tensor
 
+
 def almost_equal(match_tensor: TensorData, torch_tensor: torch.Tensor) -> bool:
     m = to_tensor(match_tensor)
     t = torch_tensor.float()
     if t.ndim == 1:
         m.squeeze_()
     return torch.allclose(m, t, rtol=1e-02, atol=1e-05)
+
 
 class TestTensorDataTest(unittest.TestCase):
     def test_broadcast(self):
@@ -29,7 +31,9 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor_broadcasted = match_tensor.broadcast(2, 2, 3, 3, 3)
 
         self.assertEqual(match_tensor_broadcasted.shape, (2, 2, 3, 3, 3))
-        self.assertTrue(almost_equal(match_tensor_broadcasted, torch_tensor_broadcasted))
+        self.assertTrue(
+            almost_equal(match_tensor_broadcasted, torch_tensor_broadcasted)
+        )
 
     def test_getitem_partial_index(self):
         # make torch tensor
