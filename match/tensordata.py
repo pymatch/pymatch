@@ -288,14 +288,6 @@ class TensorData(object):
         return self._data.__repr__() if self._item is None else self._item.__repr__()
 
     def __translate(self, *shape: int) -> tuple:
-        """
-        EXAMPLE
-        current shape = (2,1,3)
-        new shape = (3,2,5,3)
-
-        we get an index of [2,0,2,2]
-        the output should me 0,0,2
-        """
         shape = shape[0]
         res = [0] * len(self.shape)
         for i in range(len(res) - 1, -1, -1):
@@ -305,29 +297,23 @@ class TensorData(object):
         return tuple(res)
 
     def __validate_broadcast(self, shape):
+        """Helper function to determine whether self TensorData can be broadcasted 
+        to desired shape."""
         for s1, s2 in zip(reversed(self.shape), reversed(shape)):
             if not (s1 == 1 or s2 == 1 or s1 == s2):
                 raise ValueError("Can't broadcast")
 
     def broadcast(self, *shape: int):
-        """
-        Consider all these cases
-        Current Shape (8,1,2), broadcast shape (1,1,8,1,2)
-        Current Shape (8,1,2), broadcast shape (1,1,8,1,2)
-        Current Shape (8,1,2,1), broadcast shape (8,9,2,5)
+        """Broadcasts the TensorData to the desired shape.
 
-        this algorithm goes backward from the end of the new tensor
-        take this for an example
-        Current Shape (8,1,2), broadcast shape (5,1,8,3,2)
-        For we consider the last positions that deals with (8,1,2) and (8,3,2)
-        we first make a new tensor of shape (8,3,2) and try to populate that new tensor with data. what data?
-        we go index by index, translating the integer index into a multidimensional index (for the new tensor)
-        then seeing which value to grab from the original tensor.
-        then we grab that value from the original tensor and put it in the new tensor
+        Args:
+            shape: The desired shape of the tensor.
 
-        after than, we use the remaining indices that were 'Added on', the (5,1).
-        because we can just copy the array over by the product of the dimensions
-        then we change the data by copying and setting the new dimension
+        Returns:
+            A new tensor with the desired shape.
+
+        Raises:
+            ValueError: If the tensor cannot be broadcast to the desired shape.
         """
         self.__validate_broadcast(shape)
 
@@ -353,19 +339,5 @@ class TensorData(object):
         return new_tensor
 
     def unbroadcast(self, *shape: int):
-        """Return a new TensorData unbroadcast from current shape to (nrow, ncol)."""
+        """Return a new TensorData unbroadcast from current shape to desired shape."""
         ...
-
-    """
-    notes:
-    we'd want to deepcopy each list we adding in the broadcast function ... DONE
-    test using python3 -m unittest in the pymatch root directory .. DONE
-
-    rewrite the broadcast
-    iterate the dimension
-
-    play aroundw ith pytorch view and shape, look for patterns
-    
-
-
-    """
