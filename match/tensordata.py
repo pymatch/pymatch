@@ -284,8 +284,12 @@ class TensorData(object):
                         self.__multi_to_single_rank_translation(index)
                     ]._item = value._data[i]._item
 
+    # TODO(SRM47) Update the repr to make it look like PyTorch
     def __repr__(self):
         return self._data.__repr__() if self._item is None else self._item.__repr__()
+
+    def __str__(self) -> str:
+        return self.__repr__()
 
     def __translate(self, *shape: int) -> tuple:
         shape = shape[0]
@@ -340,4 +344,91 @@ class TensorData(object):
 
     def unbroadcast(self, *shape: int):
         """Return a new TensorData unbroadcast from current shape to desired shape."""
+        ...
+
+    @staticmethod
+    def randn(*shape: int) -> 'TensorData':
+        """Helper method to quickly create a List2D object with random values."""
+        ...
+
+    def ones_(self) -> None:
+        """Modify all values in the tensor to be 1.0."""
+        self.__set(1.0)
+
+    def zeros_(self) -> None:
+        """Modify all values in the tensor to be 0.0."""
+        self.__set(0.0)
+
+    def sum(self) -> float:
+        """Compute the sum of all values in the tensor."""
+        ...
+
+    def mean(self) -> float:
+        """Compute the mean of all values in the tensor."""
+        ...
+
+    def relu(self) -> 'TensorData':
+        """Return a new TensorData object with the ReLU of each element."""
+        ...
+    
+    def sigmoid(self) -> 'TensorData':
+        """Return a new TensorData object with the sigmoid of each element."""
+        ...
+    
+    @property
+    def T(self) -> 'TensorData':
+        """Return a new TensorData object with the transpose of the tensor."""
+        ...
+
+    def __set(self, val) -> None:
+        """Internal method to set all values in the TensorData to val."""
+        for td in self._data:
+            td._item = val
+
+    def __add__(self, rhs: Union[float, int, 'TensorData']) -> 'TensorData':
+        """Element-wise addition: self + rhs."""
+        ...
+
+    def __radd__(self, lhs: Union[float, int, 'TensorData']) -> 'TensorData':
+        """Element-wise addition is commutative: lhs + self."""
+        ...
+
+    def __sub__(self, rhs: Union[float, int, 'TensorData']) -> 'TensorData':
+        """Element-wise subtraction: self - rhs."""
+        ...
+
+    def __rsub__(self, lhs: Union[float, int, 'TensorData']) -> 'TensorData':
+        """Self as RHS in element-wise subtraction: lhs - self."""
+        ...
+
+    def __mul__(self, rhs: Union[float, int, 'TensorData']) -> 'TensorData':
+        """Element-wise multiplication: self * rhs."""
+        ...
+
+    def __rmul__(self, lhs: Union[float, int, 'TensorData']) -> 'TensorData':
+        """Element-wise multiplication is commutative: lhs * self."""
+        ...
+
+    def __truediv__(self, rhs: Union[float, int, 'TensorData']) -> 'TensorData':
+        """Element-wise division: self / rhs."""
+        ...
+
+    def __rtruediv__(self, lhs: Union[float, int, 'TensorData']) -> 'TensorData':
+        """Self as RHS in element-wise division: lhs / self."""
+        ...
+
+    def __pow__(self, rhs: Union[float, int]) -> 'TensorData':
+        """Element-wise exponentiation: self ** rhs."""
+        ...
+
+    def __neg__(self) -> 'TensorData':
+        """Element-wise unary negation: -self."""
+        ...
+
+    def __matmul__(self, rhs: 'TensorData') -> 'TensorData':
+        """N-dimensional tensor multiplication"""
+        ...
+
+    def __gt__(self, rhs: Union[float, int, 'TensorData']) -> 'TensorData':
+        """Element-wise comparison: self > rhs."""
         ...
