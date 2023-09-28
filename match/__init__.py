@@ -1,1 +1,1 @@
-from .tensor import ones
+from .tensor import Tensor

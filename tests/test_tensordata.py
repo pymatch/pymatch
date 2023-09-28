@@ -1,9 +1,58 @@
 import unittest
 import torch
 from match.tensordata import TensorData
+import itertools
+
+"""
+# %%
+def almostEqual(matrix: Matrix, tensor: Tensor, check_grad=False) -> bool:
+    m = to_tensor(matrix, get_grad=check_grad)
+    t = Tensor(tensor.grad) if check_grad else tensor
+    if t.ndim == 1:
+        m.squeeze_()
+    return torch.allclose(m, t, rtol=1e-02, atol=1e-05)
+
+
+# %%
+def to_tensor(matrix: Matrix, requires_grad=False, get_grad=False) -> Tensor:
+    mdata = matrix.grad.vals if get_grad else matrix.data.vals
+    return torch.tensor(mdata, requires_grad=requires_grad)
+
+be in pymatch directory
+ python3 -m unittest  
+
+"""
 
 
 class TestTensorDataTest(unittest.TestCase):
+    def test_broadcast(self):
+        # make torch tensor
+        torch_tensor = torch.arange(9).reshape(3, 1, 3)
+        # make corresponding match tensor
+        match_tensor = TensorData(3, 1, 3)
+        match_tensor._data = [TensorData(value=i) for i in range(9)]
+
+        torch_tensor_broadcasted = torch.broadcast_to(torch_tensor, (2, 2, 3, 3, 3))
+        match_tensor_broadcasted = match_tensor.broadcast(2, 2, 3, 3, 3)
+
+        self.assertEqual(match_tensor_broadcasted.shape, (2, 2, 3, 3, 3))
+
+        print(torch_tensor_broadcasted)
+        print(match_tensor_broadcasted)
+
+        for (
+            x,
+            y,
+            z,
+            a,
+            b,
+        ) in itertools.product(range(2), range(2), range(3), range(3), range(3)):
+            self.assertEqual(
+                torch_tensor_broadcasted[x, y, z, a, b].item(),
+                match_tensor_broadcasted[x, y, z, a, b].item(),
+            )
+
+
     def test_getitem_partial_index(self):
         # make torch tensor
         torch_tensor = torch.arange(27).reshape(3, 3, 3)
@@ -30,8 +79,8 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor = TensorData(3, 3, 3)
         match_tensor._data = [TensorData(value=i) for i in range(27)]
 
-        torch_tensor[2:] = torch.zeros((1,3,3))
-        match_tensor[2:] = TensorData(1,3,3)
+        torch_tensor[2:] = torch.zeros((1, 3, 3))
+        match_tensor[2:] = TensorData(1, 3, 3)
 
         for x in range(2):
             for y in range(3):
