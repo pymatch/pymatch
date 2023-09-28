@@ -72,6 +72,24 @@ class TestTensorDataTest(unittest.TestCase):
                         match_tensor_slice[x, y, z].item(),
                     )
 
+    def test_setitem_single_value_index(self):
+        # make torch tensor
+        torch_tensor = torch.arange(27).reshape(3, 3, 3)
+        # make corresponding match tensor
+        match_tensor = TensorData(3, 3, 3)
+        match_tensor._data = [TensorData(value=i) for i in range(27)]
+
+        torch_tensor[2:] = 0
+        match_tensor[2:] = 0
+
+        for x in range(2):
+            for y in range(3):
+                for z in range(3):
+                    self.assertEqual(
+                        torch_tensor[x, y, z].item(),
+                        match_tensor[x, y, z].item(),
+                    )
+
     def test_setitem_partial_index(self):
         # make torch tensor
         torch_tensor = torch.arange(27).reshape(3, 3, 3)
