@@ -19,6 +19,7 @@ def almost_equal(match_tensor: TensorData, torch_tensor: torch.Tensor) -> bool:
     return torch.allclose(m, t, rtol=1e-02, atol=1e-05)
 
 
+# Customize with https://medium.com/@lucpham/how-to-customize-unittest-in-python-d4dfb83f1dba
 class TestTensorDataTest(unittest.TestCase):
     def test_broadcast(self):
         # make torch tensor

@@ -243,10 +243,8 @@ class TensorData(object):
         Example:
             j = TensorData([5, 3, 6, 13])
             j._data = np.arange(0, 216).reshape(5, 3, 6, 13)
-
             # Set the value of a subtensor with shape (1, 2)
             j[2:3, 5, 2:5:2, 9] = 100
-
             print(j[2:3, 5, 2:5:2, 9])
             # [[100, 100]]
         """
