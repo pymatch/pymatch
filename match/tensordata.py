@@ -73,7 +73,7 @@ class TensorData(object):
             self._data = [TensorData(value=value) for _ in range(prod(self.shape))]
         else:
             self._item = value
-            self._data = []
+            self._data = None
 
     def __out_of_bounds_coords(self, coords: tuple):
         """Helper method that checks if a set of coordinates is out of bounds of the
@@ -139,6 +139,8 @@ class TensorData(object):
             RuntimeError: raises runtime error if the product of the dimensions of
             the new shape is not equal to the existing number of elements.
         """
+        if self._data is None:
+            raise RuntimeError("cannot reshape singelton tensor in place")
         if prod(shape) != len(self._data):
             raise RuntimeError(
                 f"shape {shape} is invalid for input of size {len(self._data)}"
@@ -146,6 +148,15 @@ class TensorData(object):
         self.shape = shape
         # The strides change when the shape does, so they must be reinitialized.
         self.__initialize_strides()
+
+    def reshape(self, *shape: int) -> 'TensorData':
+        """Helper method to reshape and return a new TensorData object without changing the data"""
+        # Singleton tensordatas should reshape. x[0,0,0].reshape[1] = tensor([1.])
+        # Should do something with item and data. 
+        # As per the functionality of PyTorch
+        # TODO(Sam): Ask Prof Clark about this in meeting tomorrow
+        ...
+
 
     def __convert_slice_to_index_list(self, coords):
         """Converts a list of slices or integers to a list of possible indices for each dimension.
@@ -299,7 +310,7 @@ class TensorData(object):
         return tuple(res)
 
     def __validate_broadcast(self, shape):
-        """Helper function to determine whether self TensorData can be broadcasted 
+        """Helper function to determine whether self TensorData can be broadcasted
         to desired shape."""
         for s1, s2 in zip(reversed(self.shape), reversed(shape)):
             if not (s1 == 1 or s2 == 1 or s1 == s2):
@@ -321,7 +332,7 @@ class TensorData(object):
 
         if self.shape == shape:
             return self
-        
+
         new_tensor = TensorData(*shape[len(self.shape) - 1 :], dtype=self.dtype)
         possible_indices = [range(dim) for dim in new_tensor.shape]
         for i, new_tensor_index in enumerate(itertools.product(*possible_indices)):
@@ -345,7 +356,7 @@ class TensorData(object):
         ...
 
     @staticmethod
-    def randn(*shape: int) -> 'TensorData':
+    def randn(*shape: int) -> "TensorData":
         """Helper method to quickly create a List2D object with random values."""
         ...
 
@@ -365,16 +376,16 @@ class TensorData(object):
         """Compute the mean of all values in the tensor."""
         ...
 
-    def relu(self) -> 'TensorData':
+    def relu(self) -> "TensorData":
         """Return a new TensorData object with the ReLU of each element."""
         ...
-    
-    def sigmoid(self) -> 'TensorData':
+
+    def sigmoid(self) -> "TensorData":
         """Return a new TensorData object with the sigmoid of each element."""
         ...
-    
+
     @property
-    def T(self) -> 'TensorData':
+    def T(self) -> "TensorData":
         """Return a new TensorData object with the transpose of the tensor."""
         ...
 
@@ -383,50 +394,50 @@ class TensorData(object):
         for td in self._data:
             td._item = val
 
-    def __add__(self, rhs: Union[float, int, 'TensorData']) -> 'TensorData':
+    def __add__(self, rhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise addition: self + rhs."""
         ...
 
-    def __radd__(self, lhs: Union[float, int, 'TensorData']) -> 'TensorData':
+    def __radd__(self, lhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise addition is commutative: lhs + self."""
         ...
 
-    def __sub__(self, rhs: Union[float, int, 'TensorData']) -> 'TensorData':
+    def __sub__(self, rhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise subtraction: self - rhs."""
         ...
 
-    def __rsub__(self, lhs: Union[float, int, 'TensorData']) -> 'TensorData':
+    def __rsub__(self, lhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Self as RHS in element-wise subtraction: lhs - self."""
         ...
 
-    def __mul__(self, rhs: Union[float, int, 'TensorData']) -> 'TensorData':
+    def __mul__(self, rhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise multiplication: self * rhs."""
         ...
 
-    def __rmul__(self, lhs: Union[float, int, 'TensorData']) -> 'TensorData':
+    def __rmul__(self, lhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise multiplication is commutative: lhs * self."""
         ...
 
-    def __truediv__(self, rhs: Union[float, int, 'TensorData']) -> 'TensorData':
+    def __truediv__(self, rhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise division: self / rhs."""
         ...
 
-    def __rtruediv__(self, lhs: Union[float, int, 'TensorData']) -> 'TensorData':
+    def __rtruediv__(self, lhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Self as RHS in element-wise division: lhs / self."""
         ...
 
-    def __pow__(self, rhs: Union[float, int]) -> 'TensorData':
+    def __pow__(self, rhs: Union[float, int]) -> "TensorData":
         """Element-wise exponentiation: self ** rhs."""
         ...
 
-    def __neg__(self) -> 'TensorData':
+    def __neg__(self) -> "TensorData":
         """Element-wise unary negation: -self."""
         ...
 
-    def __matmul__(self, rhs: 'TensorData') -> 'TensorData':
+    def __matmul__(self, rhs: "TensorData") -> "TensorData":
         """N-dimensional tensor multiplication"""
         ...
 
-    def __gt__(self, rhs: Union[float, int, 'TensorData']) -> 'TensorData':
+    def __gt__(self, rhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise comparison: self > rhs."""
         ...

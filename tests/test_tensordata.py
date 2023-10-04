@@ -141,7 +141,7 @@ class TestTensorDataTest(unittest.TestCase):
         tensor = TensorData(value=47.0)
         self.assertEqual(tensor.item(), 47.0)
         self.assertEqual(tensor.shape, ())
-        self.assertEqual(tensor._data, [])
+        self.assertEqual(tensor._data, None)
 
     def test_create_tensor_data(self):
         tensor = TensorData(5, 2, 4)
