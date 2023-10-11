@@ -353,7 +353,7 @@ tensor([[[47.,  1.,  1.],
 
     def __translate(self, *coord: int) -> tuple:
         """Helper method for broadcasting for mapping a coordinate in a new tensor to the existing tensor"""
-        coord_o = coord[0]
+        coord = coord[0]
 
         res = [0] * len(self.shape)
 
@@ -363,7 +363,7 @@ tensor([[[47.,  1.,  1.],
                 # If the shape isn't one at that dimension, then we grab the coordinate at that dimension as usual.
                 0
                 if self.shape[i] == 1
-                else coord_o[i + len(coord_o) - len(self.shape)]
+                else coord[i + len(coord) - len(self.shape)]
             )
 
         return tuple(res)
@@ -372,9 +372,11 @@ tensor([[[47.,  1.,  1.],
         """Helper function to determine whether self TensorData can be broadcasted
         to desired shape."""
         for s1, s2 in zip(reversed(self.shape), reversed(shape)):
+            #TODO(SAM): Talk to Prof Clark about this..., removed s2==1
             if not (s1 == 1 or s1 == s2):
                 raise ValueError("Incompatible dimensions for broadcasting")
 
+    # TODO(SAM): Create an an explanation for this algorithm and all its helper functions / make it more readable
     def broadcast(self, *shape: int):
         """Broadcasts the TensorData to the desired shape.
 
