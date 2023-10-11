@@ -18,17 +18,64 @@ def almost_equal(match_tensor: TensorData, torch_tensor: torch.Tensor) -> bool:
         m.squeeze_()
     return torch.allclose(m, t, rtol=1e-02, atol=1e-05)
 
+
 def same_references(match_tensor1: TensorData, match_tensor2: TensorData):
     # check if they are the same object, which they should to match pytorch functionality
     for e1, e2 in zip(match_tensor1._data, match_tensor2._data):
-        if not (e1 is e2):
+        if e1 is not e2:
             return False
     return True
 
 
 # Customize with https://medium.com/@lucpham/how-to-customize-unittest-in-python-d4dfb83f1dba
 class TestTensorDataTest(unittest.TestCase):
-    
+    def test_binary_operations(self):
+        torch_tensor_low_dim_1 = torch.ones(2, 2)
+        torch_tensor_low_dim_2 = torch.ones(2, 2)
+        torch_tensor_singleton = torch.ones(1)[0]
+        torch_tensor_high_dim = torch.ones(1, 3, 2, 1)
+
+        match_tensor_low_dim_1 = TensorData(2, 2)
+        match_tensor_low_dim_1.ones_()
+
+        match_tensor_low_dim_2 = TensorData(2, 2)
+        match_tensor_low_dim_2.ones_()
+
+        match_tensor_singleton = TensorData(value=1.0)
+
+        match_tensor_high_dim = TensorData(1, 3, 2, 1)
+        match_tensor_high_dim.ones_()
+
+        # low low
+        self.assertTrue(
+            almost_equal(
+                match_tensor_low_dim_1 + match_tensor_low_dim_2,
+                torch_tensor_low_dim_1 + torch_tensor_low_dim_2,
+            )
+        )
+
+        # singleton low
+        self.assertTrue(
+            almost_equal(
+                match_tensor_singleton + match_tensor_low_dim_2,
+                torch_tensor_singleton + torch_tensor_low_dim_2,
+            )
+        )
+
+        # singleton singleton
+        match_singleton_add = TensorData(value=1.0) + TensorData(value=1.0)
+        self.assertEqual(match_singleton_add.shape, ())
+        self.assertEqual(match_singleton_add._data, None)
+        self.assertEqual(match_singleton_add._item, 2)
+
+        # low high
+        self.assertTrue(
+            almost_equal(
+                match_tensor_low_dim_2 + match_tensor_high_dim,
+                torch_tensor_low_dim_2 + torch_tensor_high_dim,
+            )
+        )
+
     def test_transpose(self):
         # make torch tensor
         torch_tensor = torch.arange(9).reshape(3, 1, 3)
@@ -37,7 +84,7 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor._data = [TensorData(value=i) for i in range(9)]
 
         self.assertTrue(almost_equal(match_tensor.T(), torch_tensor.T))
-    
+
     def test_permute(self):
         # make torch tensor
         torch_tensor = torch.arange(9).reshape(3, 1, 3)
@@ -45,12 +92,10 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor = TensorData(3, 1, 3)
         match_tensor._data = [TensorData(value=i) for i in range(9)]
 
-        self.assertTrue(almost_equal(match_tensor.permute(2,0,1), torch_tensor.permute(2,0,1)))
-    
-    def test_repr(self):
-        match_tensor = TensorData(2,3,2)
-        print(match_tensor)
-        
+        self.assertTrue(
+            almost_equal(match_tensor.permute(2, 0, 1), torch_tensor.permute(2, 0, 1))
+        )
+
     def test_reshape_failure(self):
         match_tensor = TensorData(2, 3, 4)
         self.assertRaises(RuntimeError, lambda: match_tensor.reshape(5, 5, 5))
@@ -66,6 +111,28 @@ class TestTensorDataTest(unittest.TestCase):
         self.assertEqual(len(match_tensor._data), len(match_tensor._data))
         self.assertTrue(same_references(match_tensor, match_tensor_reshaped))
         self.assertRaises(IndexError, lambda: match_tensor_reshaped[1, 2, 3])
+
+    def test_broadcast_failure(self):
+        # make corresponding match tensor
+        match_tensor = TensorData(3, 1, 3)
+        match_tensor._data = [TensorData(value=i) for i in range(9)]
+
+        self.assertRaises(ValueError, lambda: match_tensor.broadcast(2, 2, 1, 3, 3))
+        self.assertRaises(RuntimeError, lambda: match_tensor.broadcast(3, 3))
+
+    def test_broadcast_singleton(self):
+        # make torch tensor
+        torch_tensor = torch.arange(9).reshape(3, 1, 3)[0, 0, 0]
+        # make corresponding match tensor
+        match_tensor = TensorData(value=0)
+
+        torch_tensor_broadcasted = torch.broadcast_to(torch_tensor, (3, 3))
+        match_tensor_broadcasted = match_tensor.broadcast(3, 3)
+
+        self.assertEqual(match_tensor_broadcasted.shape, (3, 3))
+        self.assertTrue(
+            almost_equal(match_tensor_broadcasted, torch_tensor_broadcasted)
+        )
 
     def test_broadcast(self):
         # make torch tensor
