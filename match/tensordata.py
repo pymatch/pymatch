@@ -1,9 +1,10 @@
 import itertools
-from math import exp, ceil, prod
+from math import exp, ceil, prod 
 from operator import add, ge, gt, le, lt, mul, pow
 from random import gauss
 from copy import deepcopy
 from typing import Callable, Union
+from .util import relu, sigmoid, is_permutation
 
 
 class TensorData(object):
@@ -382,8 +383,7 @@ tensor([[[47.,  1.,  1.],
             return self
 
         new_tensor = TensorData(*shape[len(self.shape) - 1 :], dtype=self.dtype)
-        possible_indices = [range(dim) for dim in new_tensor.shape]
-        for i, new_tensor_index in enumerate(itertools.product(*possible_indices)):
+        for i, new_tensor_index in enumerate(new_tensor.__all_coordinates()):
             translated_index = self.__translate(new_tensor_index)
             single_index = self.__multi_to_single_rank_translation(translated_index)
             new_tensor._data[i]._item = self._data[single_index].item()
@@ -398,6 +398,11 @@ tensor([[[47.,  1.,  1.],
         new_tensor.reshape_(shape)
 
         return new_tensor
+    
+    def __all_coordinates(self):
+        possible_indices = [range(dim) for dim in self.shape]
+        return itertools.product(*possible_indices)
+        
 
     def unbroadcast(self, *shape: int):
         """Return a new TensorData unbroadcast from current shape to desired shape."""
@@ -405,11 +410,8 @@ tensor([[[47.,  1.,  1.],
         if self.shape == shape:
             return self
         raise NotImplementedError
-    
-    def randn(*shape: int) -> 'TensorData':
-        """Helper method to quickly create a TensorData object with random values."""
-        raise NotImplementedError
 
+# start tesing from here
     def ones_(self) -> None:
         """Modify all values in the tensor to be 1.0."""
         self.__set(1.0)
@@ -420,24 +422,53 @@ tensor([[[47.,  1.,  1.],
 
     def sum(self) -> float:
         """Compute the sum of all values in the tensor."""
-        raise NotImplementedError
+        return sum(td._item for td in self._data)
 
     def mean(self) -> float:
         """Compute the mean of all values in the tensor."""
-        raise NotImplementedError
+        return self.sum()/len(self._data)
 
     def relu(self) -> "TensorData":
         """Return a new TensorData object with the ReLU of each element."""
-        raise NotImplementedError
+        new_tensor = TensorData(*self.shape)
+        for i in range(len(new_tensor._data)):
+            new_tensor._data[i]._item = relu(self._data[i]._item)
+        return new_tensor
 
     def sigmoid(self) -> "TensorData":
         """Return a new TensorData object with the sigmoid of each element."""
-        raise NotImplementedError
+        new_tensor = TensorData(*self.shape)
+        for i in range(len(new_tensor._data)):
+            new_tensor._data[i]._item = sigmoid(self._data[i]._item)
+        return new_tensor
+    
+    def permute(self, *dims: int) -> "TensorData":
+        """Return an aliased TensorData object with a permutation of its original dimensions permuted"""
+        if not is_permutation([i for i in range(len(self.shape))], dims):
+            raise RuntimeError("provided dimension tuple is not a valid permutation of the column indices of this tensor")
 
-    @property
+        # Make the new shape 
+        # If permuting (3,4,5) with the new permutation (2,0,1) would be (5,3,4)
+        new_shape = [self.shape[dim] for dim in dims]
+        # Make a new tensor with that shape
+        new_tensor = TensorData(*new_shape)
+        # Iterate through all of the element in this tensor
+        for index, coord in enumerate(self.__all_coordinates()):
+            # If the original coordinate was [1,2,3], and we permute it to (2,0,1)
+            # then the new, translated coordinate is [3,1,2].
+            translated_coord = tuple(coord[dim] for dim in dims)
+            # Look up which index the translated coordinate maps to in new_tensor._data
+            translated_index = new_tensor.__multi_to_single_rank_translation(translated_coord)
+            # Set the corresponding index in the new tensor to the 
+            new_tensor._data[translated_index] = self._data[index]
+        
+        return new_tensor
+
+       
     def T(self) -> "TensorData":
-        """Return a new TensorData object with the transpose of the tensor."""
-        raise NotImplementedError
+        """Return an aliased TensorData object with the transpose of the tensor."""
+        # Transpose is the same as permuting the tensor with the reverse of its dimensions
+        return self.permute(*reversed(range(len(self.shape))))
 
     def __set(self, val) -> None:
         """Internal method to set all values in the TensorData to val."""

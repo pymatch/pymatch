@@ -18,9 +18,34 @@ def almost_equal(match_tensor: TensorData, torch_tensor: torch.Tensor) -> bool:
         m.squeeze_()
     return torch.allclose(m, t, rtol=1e-02, atol=1e-05)
 
+def same_references(match_tensor1: TensorData, match_tensor2: TensorData):
+    # check if they are the same object, which they should to match pytorch functionality
+    for e1, e2 in zip(match_tensor1._data, match_tensor2._data):
+        if not (e1 is e2):
+            return False
+    return True
+
 
 # Customize with https://medium.com/@lucpham/how-to-customize-unittest-in-python-d4dfb83f1dba
 class TestTensorDataTest(unittest.TestCase):
+    
+    def test_transpose(self):
+        # make torch tensor
+        torch_tensor = torch.arange(9).reshape(3, 1, 3)
+        # make corresponding match tensor
+        match_tensor = TensorData(3, 1, 3)
+        match_tensor._data = [TensorData(value=i) for i in range(9)]
+
+        self.assertTrue(almost_equal(match_tensor.T(), torch_tensor.T))
+    
+    def test_permute(self):
+        # make torch tensor
+        torch_tensor = torch.arange(9).reshape(3, 1, 3)
+        # make corresponding match tensor
+        match_tensor = TensorData(3, 1, 3)
+        match_tensor._data = [TensorData(value=i) for i in range(9)]
+
+        self.assertTrue(almost_equal(match_tensor.permute(2,0,1), torch_tensor.permute(2,0,1)))
     
     def test_repr(self):
         match_tensor = TensorData(2,3,2)
@@ -39,12 +64,7 @@ class TestTensorDataTest(unittest.TestCase):
         self.assertEqual(match_tensor.shape, (2, 3, 4))
         self.assertEqual(match_tensor_reshaped.shape, (4, 3, 2))
         self.assertEqual(len(match_tensor._data), len(match_tensor._data))
-        for index in range(len(match_tensor._data)):
-            # check if they are the same object, which they should to match pytorch functionality
-            self.assertTrue(
-                match_tensor._data[index] is match_tensor_reshaped._data[index]
-            )
-
+        self.assertTrue(same_references(match_tensor, match_tensor_reshaped))
         self.assertRaises(IndexError, lambda: match_tensor_reshaped[1, 2, 3])
 
     def test_broadcast(self):
