@@ -21,6 +21,32 @@ def almost_equal(match_tensor: TensorData, torch_tensor: torch.Tensor) -> bool:
 
 # Customize with https://medium.com/@lucpham/how-to-customize-unittest-in-python-d4dfb83f1dba
 class TestTensorDataTest(unittest.TestCase):
+    
+    def test_repr(self):
+        match_tensor = TensorData(2,3,2)
+        print(match_tensor)
+        
+    def test_reshape_failure(self):
+        match_tensor = TensorData(2, 3, 4)
+        self.assertRaises(RuntimeError, lambda: match_tensor.reshape(5, 5, 5))
+
+    def test_reshape(self):
+        # make the match tensor
+        match_tensor = TensorData(2, 3, 4)
+        # reshape the match tensor
+        match_tensor_reshaped = match_tensor.reshape(4, 3, 2)
+
+        self.assertEqual(match_tensor.shape, (2, 3, 4))
+        self.assertEqual(match_tensor_reshaped.shape, (4, 3, 2))
+        self.assertEqual(len(match_tensor._data), len(match_tensor._data))
+        for index in range(len(match_tensor._data)):
+            # check if they are the same object, which they should to match pytorch functionality
+            self.assertTrue(
+                match_tensor._data[index] is match_tensor_reshaped._data[index]
+            )
+
+        self.assertRaises(IndexError, lambda: match_tensor_reshaped[1, 2, 3])
+
     def test_broadcast(self):
         # make torch tensor
         torch_tensor = torch.arange(9).reshape(3, 1, 3)

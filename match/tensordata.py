@@ -15,7 +15,7 @@ class TensorData(object):
     Like the PyTorch Tensor object, the pymatch TensorData objects are
     recursive structures that hold either a list of TensorData objects,
     or a single value. For instance, a TensorData object's data list could
-    look like [TensorData(0), TensorData(1), ..., TensorData(47)].
+    look like [TensorData(0), TensorData(1), raise NotImplementedError, TensorData(47)].
     There are therefore two implicit types of TensorData objects. Ones
     that store only a single value, accesible by .item(), and ones that
     store a list of these `singleton` TensorData objects.
@@ -132,15 +132,18 @@ class TensorData(object):
             "only one element tensors can be converted into python scalars"
         )
 
-    def __reshape(self, shape: tuple):
+    def reshape_(self, shape: tuple):
         """Helper method to reshape the TensorData object inplace, without changing the data.
 
         Raises:
             RuntimeError: raises runtime error if the product of the dimensions of
             the new shape is not equal to the existing number of elements.
         """
-        if self._data is None:
-            raise RuntimeError("cannot reshape singelton tensor in place")
+        # its fine not to account for cases like x._data[0].reshape_(1). reshaping an internal tensordata object
+        # reshaping an internal tensor object in undefined behaviour
+        # what is we rename _data to __data to hide direct access
+       #  if self._data is None:
+       #      raise RuntimeError("cannot reshape singelton tensor in place")
         if prod(shape) != len(self._data):
             raise RuntimeError(
                 f"shape {shape} is invalid for input of size {len(self._data)}"
@@ -154,8 +157,53 @@ class TensorData(object):
         # Singleton tensordatas should reshape. x[0,0,0].reshape[1] = tensor([1.])
         # Should do something with item and data. 
         # As per the functionality of PyTorch
-        # TODO(Sam): Ask Prof Clark about this in meeting tomorrow
-        ...
+        """
+        >>> x = torch.ones(3,2,3)
+>>> h = x.reshape(3,3,2)
+>>> x
+tensor([[[1., 1., 1.],
+         [1., 1., 1.]],
+
+        [[1., 1., 1.],
+         [1., 1., 1.]],
+
+        [[1., 1., 1.],
+         [1., 1., 1.]]])
+>>> h
+tensor([[[1., 1.],
+         [1., 1.],
+         [1., 1.]],
+
+        [[1., 1.],
+         [1., 1.],
+         [1., 1.]],
+
+        [[1., 1.],
+         [1., 1.],
+         [1., 1.]]])
+>>> h[0,0,0] = 47
+>>> x
+tensor([[[47.,  1.,  1.],
+         [ 1.,  1.,  1.]],
+
+        [[ 1.,  1.,  1.],
+         [ 1.,  1.,  1.]],
+
+        [[ 1.,  1.,  1.],
+         [ 1.,  1.,  1.]]])
+
+         t2._data = t1._data to achieve this, returns references anyway
+        """
+        # option 1: make a new tensor object with the new shape then set new_tensor._data = self.data
+        # When we make a with the new shape, it already initializes all prod(shape) data points, which is very expensive just to resape
+
+        # option 2: make a tensor data object a very low amount of data, then set new_tensor_data to the self.data, the use the internal reshape
+        # internally reshaping is much cheaper because we aren't creating new data, just reinitialize the strides because we're changing the shape
+        new_tensor = TensorData(1) # Some small value so creating this object is cheap
+        new_tensor._data = self._data # This ensures that its the same dat objects, like pytorch functionality
+        new_tensor.reshape_(shape) # also a cheap operation because we're not changing the data
+        return new_tensor
+
 
 
     def __convert_slice_to_index_list(self, coords):
@@ -296,7 +344,7 @@ class TensorData(object):
     # TODO(SRM47) Update the repr to make it look like PyTorch
     def __repr__(self):
         return self._data.__repr__() if self._item is None else self._item.__repr__()
-
+    
     def __str__(self) -> str:
         return self.__repr__()
 
@@ -347,18 +395,20 @@ class TensorData(object):
             new_data.extend(deepcopy(new_tensor._data))
 
         new_tensor._data = new_data
-        new_tensor.__reshape(shape)
+        new_tensor.reshape_(shape)
 
         return new_tensor
 
     def unbroadcast(self, *shape: int):
         """Return a new TensorData unbroadcast from current shape to desired shape."""
-        ...
-
-    @staticmethod
-    def randn(*shape: int) -> "TensorData":
-        """Helper method to quickly create a List2D object with random values."""
-        ...
+        # This is fine for now.
+        if self.shape == shape:
+            return self
+        raise NotImplementedError
+    
+    def randn(*shape: int) -> 'TensorData':
+        """Helper method to quickly create a TensorData object with random values."""
+        raise NotImplementedError
 
     def ones_(self) -> None:
         """Modify all values in the tensor to be 1.0."""
@@ -370,24 +420,24 @@ class TensorData(object):
 
     def sum(self) -> float:
         """Compute the sum of all values in the tensor."""
-        ...
+        raise NotImplementedError
 
     def mean(self) -> float:
         """Compute the mean of all values in the tensor."""
-        ...
+        raise NotImplementedError
 
     def relu(self) -> "TensorData":
         """Return a new TensorData object with the ReLU of each element."""
-        ...
+        raise NotImplementedError
 
     def sigmoid(self) -> "TensorData":
         """Return a new TensorData object with the sigmoid of each element."""
-        ...
+        raise NotImplementedError
 
     @property
     def T(self) -> "TensorData":
         """Return a new TensorData object with the transpose of the tensor."""
-        ...
+        raise NotImplementedError
 
     def __set(self, val) -> None:
         """Internal method to set all values in the TensorData to val."""
@@ -396,48 +446,48 @@ class TensorData(object):
 
     def __add__(self, rhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise addition: self + rhs."""
-        ...
+        raise NotImplementedError
 
     def __radd__(self, lhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise addition is commutative: lhs + self."""
-        ...
+        raise NotImplementedError
 
     def __sub__(self, rhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise subtraction: self - rhs."""
-        ...
+        raise NotImplementedError
 
     def __rsub__(self, lhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Self as RHS in element-wise subtraction: lhs - self."""
-        ...
+        raise NotImplementedError
 
     def __mul__(self, rhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise multiplication: self * rhs."""
-        ...
+        raise NotImplementedError
 
     def __rmul__(self, lhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise multiplication is commutative: lhs * self."""
-        ...
+        raise NotImplementedError
 
     def __truediv__(self, rhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise division: self / rhs."""
-        ...
+        raise NotImplementedError
 
     def __rtruediv__(self, lhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Self as RHS in element-wise division: lhs / self."""
-        ...
+        raise NotImplementedError
 
     def __pow__(self, rhs: Union[float, int]) -> "TensorData":
         """Element-wise exponentiation: self ** rhs."""
-        ...
+        raise NotImplementedError
 
     def __neg__(self) -> "TensorData":
         """Element-wise unary negation: -self."""
-        ...
+        raise NotImplementedError
 
     def __matmul__(self, rhs: "TensorData") -> "TensorData":
         """N-dimensional tensor multiplication"""
-        ...
+        raise NotImplementedError
 
     def __gt__(self, rhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise comparison: self > rhs."""
-        ...
+        return NotImplemented
