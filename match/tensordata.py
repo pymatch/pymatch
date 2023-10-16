@@ -4,6 +4,13 @@ from operator import add, ge, gt, le, lt, mul, pow
 from random import gauss
 from copy import deepcopy
 from typing import Callable, Union
+from .util import (
+    relu,
+    sigmoid,
+    is_permutation,
+    get_common_broadcast_shape,
+    matmul_2d,
+)
 
 
 class TensorData(object):
@@ -15,7 +22,7 @@ class TensorData(object):
     Like the PyTorch Tensor object, the pymatch TensorData objects are
     recursive structures that hold either a list of TensorData objects,
     or a single value. For instance, a TensorData object's data list could
-    look like [TensorData(0), TensorData(1), ..., TensorData(47)].
+    look like [TensorData(0), TensorData(1), raise NotImplementedError, TensorData(47)].
     There are therefore two implicit types of TensorData objects. Ones
     that store only a single value, accesible by .item(), and ones that
     store a list of these `singleton` TensorData objects.
@@ -132,15 +139,18 @@ class TensorData(object):
             "only one element tensors can be converted into python scalars"
         )
 
-    def __reshape(self, shape: tuple):
+    def reshape_(self, shape: tuple):
         """Helper method to reshape the TensorData object inplace, without changing the data.
 
         Raises:
             RuntimeError: raises runtime error if the product of the dimensions of
             the new shape is not equal to the existing number of elements.
         """
-        if self._data is None:
-            raise RuntimeError("cannot reshape singelton tensor in place")
+        # its fine not to account for cases like x._data[0].reshape_(1). reshaping an internal tensordata object
+        # reshaping an internal tensor object in undefined behaviour
+        # what is we rename _data to __data to hide direct access
+        #  if self._data is None:
+        #      raise RuntimeError("cannot reshape singelton tensor in place")
         if prod(shape) != len(self._data):
             raise RuntimeError(
                 f"shape {shape} is invalid for input of size {len(self._data)}"
@@ -149,14 +159,61 @@ class TensorData(object):
         # The strides change when the shape does, so they must be reinitialized.
         self.__initialize_strides()
 
-    def reshape(self, *shape: int) -> 'TensorData':
+    def reshape(self, *shape: int) -> "TensorData":
         """Helper method to reshape and return a new TensorData object without changing the data"""
         # Singleton tensordatas should reshape. x[0,0,0].reshape[1] = tensor([1.])
-        # Should do something with item and data. 
+        # Should do something with item and data.
         # As per the functionality of PyTorch
-        # TODO(Sam): Ask Prof Clark about this in meeting tomorrow
-        ...
+        """
+        >>> x = torch.ones(3,2,3)
+>>> h = x.reshape(3,3,2)
+>>> x
+tensor([[[1., 1., 1.],
+         [1., 1., 1.]],
 
+        [[1., 1., 1.],
+         [1., 1., 1.]],
+
+        [[1., 1., 1.],
+         [1., 1., 1.]]])
+>>> h
+tensor([[[1., 1.],
+         [1., 1.],
+         [1., 1.]],
+
+        [[1., 1.],
+         [1., 1.],
+         [1., 1.]],
+
+        [[1., 1.],
+         [1., 1.],
+         [1., 1.]]])
+>>> h[0,0,0] = 47
+>>> x
+tensor([[[47.,  1.,  1.],
+         [ 1.,  1.,  1.]],
+
+        [[ 1.,  1.,  1.],
+         [ 1.,  1.,  1.]],
+
+        [[ 1.,  1.,  1.],
+         [ 1.,  1.,  1.]]])
+
+         t2._data = t1._data to achieve this, returns references anyway
+        """
+        # option 1: make a new tensor object with the new shape then set new_tensor._data = self.data
+        # When we make a with the new shape, it already initializes all prod(shape) data points, which is very expensive just to resape
+
+        # option 2: make a tensor data object a very low amount of data, then set new_tensor_data to the self.data, the use the internal reshape
+        # internally reshaping is much cheaper because we aren't creating new data, just reinitialize the strides because we're changing the shape
+        new_tensor = TensorData(1)  # Some small value so creating this object is cheap
+        new_tensor._data = (
+            self._data
+        )  # This ensures that its the same dat objects, like pytorch functionality
+        new_tensor.reshape_(
+            shape
+        )  # also a cheap operation because we're not changing the data
+        return new_tensor
 
     def __convert_slice_to_index_list(self, coords):
         """Converts a list of slices or integers to a list of possible indices for each dimension.
@@ -300,22 +357,32 @@ class TensorData(object):
     def __str__(self) -> str:
         return self.__repr__()
 
-    def __translate(self, *shape: int) -> tuple:
-        shape = shape[0]
+    def __translate(self, *coord: int) -> tuple:
+        """Helper method for broadcasting for mapping a coordinate in a new tensor to the existing tensor"""
+        coord = coord[0]
+
         res = [0] * len(self.shape)
+
         for i in range(len(res) - 1, -1, -1):
             res[i] = (
-                0 if self.shape[i] == 1 else shape[i + len(shape) - len(self.shape)]
+                # If the shape at the current index is 1, then access the 0th element in that dimension.
+                # If the shape isn't one at that dimension, then we grab the coordinate at that dimension as usual.
+                0
+                if self.shape[i] == 1
+                else coord[i + len(coord) - len(self.shape)]
             )
+
         return tuple(res)
 
     def __validate_broadcast(self, shape):
         """Helper function to determine whether self TensorData can be broadcasted
         to desired shape."""
         for s1, s2 in zip(reversed(self.shape), reversed(shape)):
-            if not (s1 == 1 or s2 == 1 or s1 == s2):
-                raise ValueError("Can't broadcast")
+            # TODO(SAM): Talk to Prof Clark about this..., removed s2==1
+            if not (s1 == 1 or s1 == s2):
+                raise ValueError("Incompatible dimensions for broadcasting")
 
+    # TODO(SAM): Create an an explanation for this algorithm and all its helper functions / make it more readable
     def broadcast(self, *shape: int):
         """Broadcasts the TensorData to the desired shape.
 
@@ -328,38 +395,56 @@ class TensorData(object):
         Raises:
             ValueError: If the tensor cannot be broadcast to the desired shape.
         """
-        self.__validate_broadcast(shape)
-
         if self.shape == shape:
             return self
 
-        new_tensor = TensorData(*shape[len(self.shape) - 1 :], dtype=self.dtype)
-        possible_indices = [range(dim) for dim in new_tensor.shape]
-        for i, new_tensor_index in enumerate(itertools.product(*possible_indices)):
+        if len(shape) < len(self.shape):
+            raise RuntimeError(
+                "The number of sizes provided must be greater or equal to the number of dimensions in the tensor."
+            )
+
+        # Account for the case when we're broadcasting a singleton
+        if not self._data:
+            value = self._item
+            new_tensor = TensorData(*shape)
+            for elem in new_tensor._data:
+                elem._item = value
+            return new_tensor
+
+        self.__validate_broadcast(shape)
+
+        new_tensor = TensorData(*shape[-1 * len(self.shape) :], dtype=self.dtype)
+        # Loop through all coordinates in the new tensor
+        for i, new_tensor_index in enumerate(new_tensor.__all_coordinates()):
+            # For every new coordinate in the new tensor, see what coordinate in the original tensor has its supposed value
             translated_index = self.__translate(new_tensor_index)
             single_index = self.__multi_to_single_rank_translation(translated_index)
+            # new_tensor[new_coordinate] = old_tensor[new_coordinate_translated_to_old_coordinate_system].
             new_tensor._data[i]._item = self._data[single_index].item()
 
-        remianing_dimensions = shape[: len(self.shape) - 1]
+        remianing_dimensions = shape[: -1 * len(self.shape)]
 
         new_data = []
         for _ in range(prod(remianing_dimensions)):
             new_data.extend(deepcopy(new_tensor._data))
 
         new_tensor._data = new_data
-        new_tensor.__reshape(shape)
+        new_tensor.reshape_(shape)
 
         return new_tensor
 
+    def __all_coordinates(self):
+        possible_indices = [range(dim) for dim in self.shape]
+        return itertools.product(*possible_indices)
+
     def unbroadcast(self, *shape: int):
         """Return a new TensorData unbroadcast from current shape to desired shape."""
-        ...
+        # This is fine for now.
+        if self.shape == shape:
+            return self
+        raise NotImplementedError
 
-    @staticmethod
-    def randn(*shape: int) -> "TensorData":
-        """Helper method to quickly create a List2D object with random values."""
-        ...
-
+    # start tesing from here
     def ones_(self) -> None:
         """Modify all values in the tensor to be 1.0."""
         self.__set(1.0)
@@ -370,74 +455,197 @@ class TensorData(object):
 
     def sum(self) -> float:
         """Compute the sum of all values in the tensor."""
-        ...
+        return sum(td._item for td in self._data)
 
     def mean(self) -> float:
         """Compute the mean of all values in the tensor."""
-        ...
+        return self.sum() / len(self._data)
 
     def relu(self) -> "TensorData":
         """Return a new TensorData object with the ReLU of each element."""
-        ...
+        new_tensor = TensorData(*self.shape)
+        for i in range(len(new_tensor._data)):
+            new_tensor._data[i]._item = relu(self._data[i]._item)
+        return new_tensor
 
     def sigmoid(self) -> "TensorData":
         """Return a new TensorData object with the sigmoid of each element."""
-        ...
+        new_tensor = TensorData(*self.shape)
+        for i in range(len(new_tensor._data)):
+            new_tensor._data[i]._item = sigmoid(self._data[i]._item)
+        return new_tensor
+
+    def permute(self, *dims: int) -> "TensorData":
+        """Return an aliased TensorData object with a permutation of its original dimensions permuted"""
+        if not is_permutation([i for i in range(len(self.shape))], dims):
+            raise RuntimeError(
+                "provided dimension tuple is not a valid permutation of the column indices of this tensor"
+            )
+
+        # Make the new shape
+        # If permuting (3,4,5) with the new permutation (2,0,1) would be (5,3,4)
+        new_shape = [self.shape[dim] for dim in dims]
+        # Make a new tensor with that shape
+        new_tensor = TensorData(*new_shape)
+        # Iterate through all of the element in this tensor
+        for index, coord in enumerate(self.__all_coordinates()):
+            # If the original coordinate was [1,2,3], and we permute it to (2,0,1)
+            # then the new, translated coordinate is [3,1,2].
+            translated_coord = tuple(coord[dim] for dim in dims)
+            # Look up which index the translated coordinate maps to in new_tensor._data
+            translated_index = new_tensor.__multi_to_single_rank_translation(
+                translated_coord
+            )
+            # Set the corresponding index in the new tensor to the
+            new_tensor._data[translated_index] = self._data[index]
+
+        return new_tensor
 
     @property
     def T(self) -> "TensorData":
-        """Return a new TensorData object with the transpose of the tensor."""
-        ...
+        """Return an aliased TensorData object with the transpose of the tensor."""
+        # Transpose is the same as permuting the tensor with the reverse of its dimensions
+        return self.permute(*reversed(range(len(self.shape))))
 
     def __set(self, val) -> None:
         """Internal method to set all values in the TensorData to val."""
         for td in self._data:
             td._item = val
 
+    def __binary_op(
+        self, op: Callable, rhs: Union[float, int, "TensorData"]
+    ) -> "TensorData":
+        """Internal method to perform a binary operation on the TensorData object.
+
+        This method will automatically broadcast inputs when necessary.
+        """
+
+        # Handle the case where rhs is a scalar or is a singleton
+        # Python evaluates expressions from left to right
+        if isinstance(rhs, (float, int)) or not rhs._data:
+            # If rhs isn't a number, then it's a singleton TensorData object, so the value should be its item.
+            value = rhs if isinstance(rhs, (float, int)) else rhs._item
+
+            # Handle case where self is a singleton
+            if not self._data:
+                return TensorData(value=op(self._item, value))
+
+            new_tensor = TensorData(*self.shape)
+            for i, elem in enumerate(new_tensor._data):
+                elem._item = op(self._data[i]._item, value)
+            return new_tensor
+
+        broadcast_to = get_common_broadcast_shape(self.shape, rhs.shape)
+
+        # Create empty output
+        out = TensorData(*broadcast_to)
+
+        # The broadcast method returns a new object
+        lhs = self.broadcast(*broadcast_to)
+        rhs = rhs.broadcast(*broadcast_to)
+
+        # Compute the binary operation for every element
+        for i, elem in enumerate(out._data):
+            elem._item = op(lhs._data[i]._item, rhs._data[i]._item)
+
+        return out
+
     def __add__(self, rhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise addition: self + rhs."""
-        ...
+        return self.__binary_op(add, rhs)
 
     def __radd__(self, lhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise addition is commutative: lhs + self."""
-        ...
+        return self + lhs
 
     def __sub__(self, rhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise subtraction: self - rhs."""
-        ...
+        return -rhs + self
 
     def __rsub__(self, lhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Self as RHS in element-wise subtraction: lhs - self."""
-        ...
+        return -self + lhs
 
     def __mul__(self, rhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise multiplication: self * rhs."""
-        ...
+        return self.__binary_op(mul, rhs)
 
     def __rmul__(self, lhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise multiplication is commutative: lhs * self."""
-        ...
+        return self * lhs
 
     def __truediv__(self, rhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise division: self / rhs."""
-        ...
+        return self * rhs**-1
 
     def __rtruediv__(self, lhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Self as RHS in element-wise division: lhs / self."""
-        ...
+        return lhs * self**-1
 
     def __pow__(self, rhs: Union[float, int]) -> "TensorData":
         """Element-wise exponentiation: self ** rhs."""
-        ...
+        assert isinstance(rhs, (float, int)), "Exponent must be a number."
+        return self.__binary_op(pow, rhs)
 
     def __neg__(self) -> "TensorData":
         """Element-wise unary negation: -self."""
-        ...
-
-    def __matmul__(self, rhs: "TensorData") -> "TensorData":
-        """N-dimensional tensor multiplication"""
-        ...
+        return self * -1
 
     def __gt__(self, rhs: Union[float, int, "TensorData"]) -> "TensorData":
         """Element-wise comparison: self > rhs."""
-        ...
+        return self.__binary_op(gt, rhs)
+
+    def __matmul__(self, rhs: "TensorData") -> "TensorData":
+        """N-dimensional tensor multiplication
+
+        Implements the following algorithm: https://pytorch.org/docs/stable/generated/torch.matmul.html
+        """
+        lhs = self
+        lhs_dims, rhs_dims = len(self.shape), len(rhs.shape)
+
+        # If both tensors are 1-dimensional, the dot product (scalar) is returned.
+        if lhs_dims == 1 and rhs_dims == 1:
+            if len(lhs._data) == len(rhs._data):
+                # dot product
+                return sum(i * j for i, j in zip(self._data, rhs._data))
+            
+        # If both arguments are 2-dimensional, the matrix-matrix product is returned.
+        elif lhs_dims == 2 and rhs_dims == 2:
+            result_shape, result_data = matmul_2d(
+                lhs._data, lhs.shape, rhs._data, rhs.shape
+            )
+            new_tensor = TensorData(0)
+            new_tensor._data = result_data
+            new_tensor.reshape_(result_shape)
+            return new_tensor
+        
+        # If the first argument is 1-dimensional and the second argument is 2-dimensional...
+        elif lhs_dims == 1 and rhs_dims == 2:
+            # ... a 1 is prepended to its dimension for the purpose of the matrix multiply...
+            result_shape, result_data = matmul_2d(
+                lhs._data, (1,)+lhs.shape, rhs._data, rhs.shape
+            )
+            new_tensor = TensorData(0)
+            new_tensor._data = result_data
+            # ... and after the matrix multiply, the prepended dimension is removed.
+            new_tensor.reshape_((result_shape[1],))
+            return new_tensor
+
+        # If the first argument is 2-dimensional and the second argument is 1-dimensional, 
+        # the matrix-vector product is returned.
+        elif lhs_dims == 2 and rhs_dims == 1:
+            # A 1 is appended to its dimension for the purpose of the matrix multiply...
+            result_shape, result_data = matmul_2d(
+                lhs._data, lhs.shape, rhs._data, rhs.shape+(1,)
+            )
+            new_tensor = TensorData(0)
+            new_tensor._data = result_data
+            # ... and after the matrix multiply, the appended dimension is removed.
+            new_tensor.reshape_((result_shape[0],))
+            return new_tensor
+        
+        # If both arguments are at least 1-dimensional and at least one argument is 
+        # N-dimensional (where N > 2), then a batched matrix multiply is returned.
+        elif (lhs_dims>=1 and rhs_dims>=1) and (lhs_dims>2 or rhs_dims>2):
+            return NotImplementedError
+            
