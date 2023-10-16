@@ -29,6 +29,70 @@ def same_references(match_tensor1: TensorData, match_tensor2: TensorData):
 
 # Customize with https://medium.com/@lucpham/how-to-customize-unittest-in-python-d4dfb83f1dba
 class TestTensorDataTest(unittest.TestCase):
+    def test_matmul_2d_1d(self):
+        torch_tensor_1 = torch.arange(56).reshape(7, 8)
+        torch_tensor_2 = torch.arange(8).reshape(8)
+
+        match_tensor_1 = TensorData(7, 8)
+        match_tensor_1._data = [TensorData(value=i) for i in range(56)]
+
+        match_tensor_2 = TensorData(8)
+        match_tensor_2._data = [TensorData(value=i) for i in range(8)]
+
+        product_tensor = match_tensor_1 @ match_tensor_2
+
+        self.assertEqual(product_tensor.shape, (7,))
+        self.assertEqual(product_tensor._item, None)
+
+        self.assertTrue(almost_equal(product_tensor, torch_tensor_1 @ torch_tensor_2))
+
+    def test_matmul_1d_2d(self):
+        torch_tensor_1 = torch.arange(8).reshape(8)
+        torch_tensor_2 = torch.arange(16).reshape(8, 2)
+
+        match_tensor_1 = TensorData(8)
+        match_tensor_1._data = [TensorData(value=i) for i in range(8)]
+
+        match_tensor_2 = TensorData(8, 2)
+        match_tensor_2._data = [TensorData(value=i) for i in range(16)]
+
+        product_tensor = match_tensor_1 @ match_tensor_2
+
+        self.assertEqual(product_tensor.shape, (2,))
+        self.assertEqual(product_tensor._item, None)
+
+        self.assertTrue(almost_equal(product_tensor, torch_tensor_1 @ torch_tensor_2))
+
+    def test_matmul_2d_2d(self):
+        torch_tensor_1 = torch.arange(56).reshape(7, 8)
+        torch_tensor_2 = torch.arange(16).reshape(8, 2)
+
+        match_tensor_1 = TensorData(7, 8)
+        match_tensor_1._data = [TensorData(value=i) for i in range(56)]
+
+        match_tensor_2 = TensorData(8, 2)
+        match_tensor_2._data = [TensorData(value=i) for i in range(16)]
+
+        product_tensor = match_tensor_1 @ match_tensor_2
+
+        self.assertEqual(product_tensor.shape, (7, 2))
+        self.assertEqual(product_tensor._item, None)
+
+        self.assertTrue(almost_equal(product_tensor, torch_tensor_1 @ torch_tensor_2))
+
+    def test_matmul_1d_1d(self):
+        match_tensor_1 = TensorData(9)
+        match_tensor_1._data = [TensorData(value=i) for i in range(9)]
+
+        match_tensor_2 = TensorData(9)
+        match_tensor_2._data = [TensorData(value=i) for i in range(9)]
+
+        product_tensor = match_tensor_1 @ match_tensor_2
+
+        self.assertEqual(product_tensor.shape, ())
+        self.assertEqual(product_tensor.item(), 204)
+        self.assertEqual(product_tensor._data, None)
+
     def test_binary_operations(self):
         torch_tensor_low_dim_1 = torch.ones(2, 2)
         torch_tensor_low_dim_2 = torch.ones(2, 2)
@@ -83,7 +147,7 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor = TensorData(3, 1, 3)
         match_tensor._data = [TensorData(value=i) for i in range(9)]
 
-        self.assertTrue(almost_equal(match_tensor.T(), torch_tensor.T))
+        self.assertTrue(almost_equal(match_tensor.T, torch_tensor.T))
 
     def test_permute(self):
         # make torch tensor

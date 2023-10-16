@@ -4,7 +4,13 @@ from operator import add, ge, gt, le, lt, mul, pow
 from random import gauss
 from copy import deepcopy
 from typing import Callable, Union
-from .util import relu, sigmoid, is_permutation, get_common_broadcast_shape
+from .util import (
+    relu,
+    sigmoid,
+    is_permutation,
+    get_common_broadcast_shape,
+    matmul_2d,
+)
 
 
 class TensorData(object):
@@ -372,7 +378,7 @@ tensor([[[47.,  1.,  1.],
         """Helper function to determine whether self TensorData can be broadcasted
         to desired shape."""
         for s1, s2 in zip(reversed(self.shape), reversed(shape)):
-            #TODO(SAM): Talk to Prof Clark about this..., removed s2==1
+            # TODO(SAM): Talk to Prof Clark about this..., removed s2==1
             if not (s1 == 1 or s1 == s2):
                 raise ValueError("Incompatible dimensions for broadcasting")
 
@@ -495,6 +501,7 @@ tensor([[[47.,  1.,  1.],
 
         return new_tensor
 
+    @property
     def T(self) -> "TensorData":
         """Return an aliased TensorData object with the transpose of the tensor."""
         # Transpose is the same as permuting the tensor with the reverse of its dimensions
@@ -589,5 +596,56 @@ tensor([[[47.,  1.,  1.],
         return self.__binary_op(gt, rhs)
 
     def __matmul__(self, rhs: "TensorData") -> "TensorData":
-        """N-dimensional tensor multiplication"""
-        return NotImplemented
+        """N-dimensional tensor multiplication
+
+        Implements the following algorithm: https://pytorch.org/docs/stable/generated/torch.matmul.html
+        """
+        lhs = self
+        lhs_dims, rhs_dims = len(self.shape), len(rhs.shape)
+
+        # If both tensors are 1-dimensional, the dot product (scalar) is returned.
+        if lhs_dims == 1 and rhs_dims == 1:
+            if len(lhs._data) == len(rhs._data):
+                # dot product
+                return sum(i * j for i, j in zip(self._data, rhs._data))
+            
+        # If both arguments are 2-dimensional, the matrix-matrix product is returned.
+        elif lhs_dims == 2 and rhs_dims == 2:
+            result_shape, result_data = matmul_2d(
+                lhs._data, lhs.shape, rhs._data, rhs.shape
+            )
+            new_tensor = TensorData(0)
+            new_tensor._data = result_data
+            new_tensor.reshape_(result_shape)
+            return new_tensor
+        
+        # If the first argument is 1-dimensional and the second argument is 2-dimensional...
+        elif lhs_dims == 1 and rhs_dims == 2:
+            # ... a 1 is prepended to its dimension for the purpose of the matrix multiply...
+            result_shape, result_data = matmul_2d(
+                lhs._data, (1,)+lhs.shape, rhs._data, rhs.shape
+            )
+            new_tensor = TensorData(0)
+            new_tensor._data = result_data
+            # ... and after the matrix multiply, the prepended dimension is removed.
+            new_tensor.reshape_((result_shape[1],))
+            return new_tensor
+
+        # If the first argument is 2-dimensional and the second argument is 1-dimensional, 
+        # the matrix-vector product is returned.
+        elif lhs_dims == 2 and rhs_dims == 1:
+            # A 1 is appended to its dimension for the purpose of the matrix multiply...
+            result_shape, result_data = matmul_2d(
+                lhs._data, lhs.shape, rhs._data, rhs.shape+(1,)
+            )
+            new_tensor = TensorData(0)
+            new_tensor._data = result_data
+            # ... and after the matrix multiply, the appended dimension is removed.
+            new_tensor.reshape_((result_shape[0],))
+            return new_tensor
+        
+        # If both arguments are at least 1-dimensional and at least one argument is 
+        # N-dimensional (where N > 2), then a batched matrix multiply is returned.
+        elif (lhs_dims>=1 and rhs_dims>=1) and (lhs_dims>2 or rhs_dims>2):
+            return NotImplementedError
+            
