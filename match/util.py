@@ -10,6 +10,11 @@ from itertools import zip_longest
 Number: type = Union[float, int]
 
 
+def all_coordinates(shape: tuple):
+    possible_indices = [range(dim) for dim in shape]
+    return itertools.product(*possible_indices)
+
+
 def relu(n: Number) -> Number:
     return max(0, n)
 

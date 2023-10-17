@@ -29,6 +29,56 @@ def same_references(match_tensor1: TensorData, match_tensor2: TensorData):
 
 # Customize with https://medium.com/@lucpham/how-to-customize-unittest-in-python-d4dfb83f1dba
 class TestTensorDataTest(unittest.TestCase):
+    def test_matmul_nd_1d(self):
+        torch_tensor_1 = torch.arange(24).reshape(2,4,3)
+        torch_tensor_2 = torch.arange(3)
+
+        match_tensor_2 = TensorData(3)
+        match_tensor_2._data = [TensorData(value=i) for i in range(3)]
+
+        match_tensor_1 = TensorData(2,4,3)
+        match_tensor_1._data = [TensorData(value=i) for i in range(24)]
+
+        product_tensor = match_tensor_1 @ match_tensor_2
+
+        self.assertEqual(product_tensor.shape, (2,4))
+
+        self.assertTrue(almost_equal(product_tensor, torch_tensor_1 @ torch_tensor_2))
+        self.assertEqual(match_tensor_2.shape, (3,))
+
+    def test_matmul_1d_nd(self):
+        torch_tensor_1 = torch.arange(4)
+        torch_tensor_2 = torch.arange(24).reshape(2,4,3)
+
+        match_tensor_1 = TensorData(4)
+        match_tensor_1._data = [TensorData(value=i) for i in range(4)]
+
+        match_tensor_2 = TensorData(2,4,3)
+        match_tensor_2._data = [TensorData(value=i) for i in range(24)]
+
+        product_tensor = match_tensor_1 @ match_tensor_2
+
+        self.assertEqual(product_tensor.shape, (2,3))
+
+        self.assertTrue(almost_equal(product_tensor, torch_tensor_1 @ torch_tensor_2))
+        self.assertEqual(match_tensor_1.shape, (4,))
+
+    def test_matmul_nd_nd(self):
+        torch_tensor_1 = torch.arange(56).reshape(2,1,7,4)
+        torch_tensor_2 = torch.arange(24).reshape(2,4,3)
+
+        match_tensor_1 = TensorData(2,1,7,4)
+        match_tensor_1._data = [TensorData(value=i) for i in range(56)]
+
+        match_tensor_2 = TensorData(2,4,3)
+        match_tensor_2._data = [TensorData(value=i) for i in range(24)]
+
+        product_tensor = match_tensor_1 @ match_tensor_2
+
+        self.assertEqual(product_tensor.shape, (2,2,7,3))
+
+        self.assertTrue(almost_equal(product_tensor, torch_tensor_1 @ torch_tensor_2))
+
     def test_matmul_2d_1d(self):
         torch_tensor_1 = torch.arange(56).reshape(7, 8)
         torch_tensor_2 = torch.arange(8).reshape(8)

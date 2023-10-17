@@ -10,6 +10,7 @@ from .util import (
     is_permutation,
     get_common_broadcast_shape,
     matmul_2d,
+    all_coordinates,
 )
 
 
@@ -434,8 +435,7 @@ tensor([[[47.,  1.,  1.],
         return new_tensor
 
     def __all_coordinates(self):
-        possible_indices = [range(dim) for dim in self.shape]
-        return itertools.product(*possible_indices)
+        return all_coordinates(self.shape)
 
     def unbroadcast(self, *shape: int):
         """Return a new TensorData unbroadcast from current shape to desired shape."""
@@ -601,14 +601,15 @@ tensor([[[47.,  1.,  1.],
         Implements the following algorithm: https://pytorch.org/docs/stable/generated/torch.matmul.html
         """
         lhs = self
-        lhs_dims, rhs_dims = len(self.shape), len(rhs.shape)
+        lhs_shape, rhs_shape = self.shape, rhs.shape
+        lhs_dims, rhs_dims = len(lhs_shape), len(rhs_shape)
 
         # If both tensors are 1-dimensional, the dot product (scalar) is returned.
         if lhs_dims == 1 and rhs_dims == 1:
             if len(lhs._data) == len(rhs._data):
                 # dot product
                 return sum(i * j for i, j in zip(self._data, rhs._data))
-            
+
         # If both arguments are 2-dimensional, the matrix-matrix product is returned.
         elif lhs_dims == 2 and rhs_dims == 2:
             result_shape, result_data = matmul_2d(
@@ -618,12 +619,12 @@ tensor([[[47.,  1.,  1.],
             new_tensor._data = result_data
             new_tensor.reshape_(result_shape)
             return new_tensor
-        
+
         # If the first argument is 1-dimensional and the second argument is 2-dimensional...
         elif lhs_dims == 1 and rhs_dims == 2:
             # ... a 1 is prepended to its dimension for the purpose of the matrix multiply...
             result_shape, result_data = matmul_2d(
-                lhs._data, (1,)+lhs.shape, rhs._data, rhs.shape
+                lhs._data, (1,) + lhs.shape, rhs._data, rhs.shape
             )
             new_tensor = TensorData(0)
             new_tensor._data = result_data
@@ -631,21 +632,77 @@ tensor([[[47.,  1.,  1.],
             new_tensor.reshape_((result_shape[1],))
             return new_tensor
 
-        # If the first argument is 2-dimensional and the second argument is 1-dimensional, 
+        # If the first argument is 2-dimensional and the second argument is 1-dimensional,
         # the matrix-vector product is returned.
         elif lhs_dims == 2 and rhs_dims == 1:
             # A 1 is appended to its dimension for the purpose of the matrix multiply...
             result_shape, result_data = matmul_2d(
-                lhs._data, lhs.shape, rhs._data, rhs.shape+(1,)
+                lhs._data, lhs.shape, rhs._data, rhs.shape + (1,)
             )
             new_tensor = TensorData(0)
             new_tensor._data = result_data
             # ... and after the matrix multiply, the appended dimension is removed.
             new_tensor.reshape_((result_shape[0],))
             return new_tensor
-        
-        # If both arguments are at least 1-dimensional and at least one argument is 
+
+        # If both arguments are at least 1-dimensional and at least one argument is
         # N-dimensional (where N > 2), then a batched matrix multiply is returned.
-        elif (lhs_dims>=1 and rhs_dims>=1) and (lhs_dims>2 or rhs_dims>2):
-            return NotImplementedError
+        elif (lhs_dims >= 1 and rhs_dims >= 1) and (lhs_dims > 2 or rhs_dims > 2):
+            # If the first argument is 1-dimensional, a 1 is prepended to its dimension
+            if lhs_dims == 1:
+                lhs.reshape_((1,) + lhs_shape)
+            # If the second argument is 1-dimensional, a 1 is appended to its dimension
+            if rhs_dims == 1:
+                rhs.reshape_(rhs_shape + (1,))
+
+            # The non-matrix (i.e. batch) dimensions are broadcasted
+            lhs_non_matrix_dims, lhs_matrix_dims = lhs.shape[:-2], lhs.shape[-2:]
+            rhs_non_matrix_dims, rhs_matrix_dims = rhs.shape[:-2], rhs.shape[-2:]
+
+            common_broadcast_shape = get_common_broadcast_shape(
+                lhs_non_matrix_dims, rhs_non_matrix_dims
+            )
             
+            # The number of elements in each matrix
+            lhs_matrix_size = prod(lhs_matrix_dims)
+            rhs_matrix_size = prod(rhs_matrix_dims)
+            result_data = []
+            for coord in all_coordinates(common_broadcast_shape):
+                # Look up the index in lhs._data where the matrix we're multiplying should start
+                # Of the dimensions except for the last two, non matrix dimensions, see what that coordinate would translate to in the lhs coordinate system
+                # if the coord is (0,1) in the new combined tensor, and the lhs dimensions are (4,1), then I have to translate the (0,1) into (0,0)
+                coord_unbroadcasted_lhs = tuple(reversed(tuple(coord[i] if lhs_non_matrix_dims[i]!=1 else 0 for i in range(-1, -len(lhs_non_matrix_dims)-1, -1))))
+                # Get combine the previous translated coordinate with 0,0, to grab the starting point of the matrix
+                # then grab the index
+                # we dont want to use get set item for increased efficiency
+                lhs_matrix_start = lhs.__multi_to_single_rank_translation(coord_unbroadcasted_lhs + (0,0))
+
+                coord_unbroadcasted_rhs = tuple(reversed(tuple(coord[i] if rhs_non_matrix_dims[i]!=1 else 0 for i in range(-1, -len(rhs_non_matrix_dims)-1, -1))))
+                rhs_matrix_start = rhs.__multi_to_single_rank_translation(coord_unbroadcasted_rhs + (0,0))
+              
+                lhs_matrix = lhs._data[lhs_matrix_start:lhs_matrix_start+lhs_matrix_size]
+                rhs_matrix = rhs._data[rhs_matrix_start:rhs_matrix_start+rhs_matrix_size]
+                _, local_matrix_prod = matmul_2d(
+                    lhs_matrix, lhs_matrix_dims, rhs_matrix, rhs_matrix_dims
+                )
+                result_data += local_matrix_prod
+            
+
+            # Revert lhs and rhs back to orginal dimension if changed previously and remove the extra dimension
+            new_shape = tuple(common_broadcast_shape)
+            
+            if lhs_dims == 1:
+                lhs.reshape_(lhs_shape)
+            else:
+                new_shape += (lhs_matrix_dims[0],)
+
+            if rhs_dims == 1:
+                rhs.reshape_(rhs_shape)
+            else:
+                new_shape += (rhs_matrix_dims[1],)
+
+            new_tensor = TensorData(0)
+            new_tensor._data = result_data
+            new_tensor.reshape_(new_shape)
+            
+            return new_tensor
