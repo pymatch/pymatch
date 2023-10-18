@@ -91,7 +91,7 @@ class TestTensorDataTest(unittest.TestCase):
         product_tensor = match_tensor_1 @ match_tensor_2
 
         self.assertEqual(product_tensor.shape, (7,))
-        self.assertEqual(product_tensor.item(), None)
+        self.assertEqual(product_tensor._item, None)
 
         self.assertTrue(almost_equal(product_tensor, torch_tensor_1 @ torch_tensor_2))
 
@@ -108,7 +108,7 @@ class TestTensorDataTest(unittest.TestCase):
         product_tensor = match_tensor_1 @ match_tensor_2
 
         self.assertEqual(product_tensor.shape, (2,))
-        self.assertEqual(product_tensor.item(), None)
+        self.assertEqual(product_tensor._item, None)
 
         self.assertTrue(almost_equal(product_tensor, torch_tensor_1 @ torch_tensor_2))
 
@@ -125,7 +125,7 @@ class TestTensorDataTest(unittest.TestCase):
         product_tensor = match_tensor_1 @ match_tensor_2
 
         self.assertEqual(product_tensor.shape, (7, 2))
-        self.assertEqual(product_tensor.item(), None)
+        self.assertEqual(product_tensor._item, None)
 
         self.assertTrue(almost_equal(product_tensor, torch_tensor_1 @ torch_tensor_2))
 
@@ -236,7 +236,8 @@ class TestTensorDataTest(unittest.TestCase):
 
         self.assertEqual(len(match_tensor_reshaped._data), 1)
         self.assertEqual(match_tensor_reshaped.shape, (1,))
-        self.assertEqual(match_tensor_reshaped.item(), None)
+        self.assertEqual(match_tensor_reshaped.item(), 47)
+        self.assertEqual(match_tensor_reshaped._item, None)
 
         # They must have the same reference
         match_tensor._item = 42
