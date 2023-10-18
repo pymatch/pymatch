@@ -196,9 +196,9 @@ class TensorData(object):
 
         # An instantiation of a TensorData object will make prod(self.shape)
         # singleton TensorData objects. As we do not need to create these
-        # extra objects, we initialize the new tensor to have a shape of (1,)
-        # so only one singleton is created in new_tensor._data.
-        new_tensor = TensorData(1)
+        # extra objects, we initialize the new tensor to have a shape of (0,)
+        # so no singleton is created in new_tensor._data.
+        new_tensor = TensorData(0)
         new_tensor._data = self._data
         new_tensor.reshape_(shape)
         return new_tensor
