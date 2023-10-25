@@ -24,7 +24,7 @@ class Module:
                 self.linear2 = match.nn.Linear(n1, n2)
                 self.sigmoid = match.nn.Sigmoid()
 
-            def forward(self, x) -> Matrix:
+            def forward(self, x) -> Tensor:
                 x = self.linear1(x)
                 x = self.relu(x)
                 x = self.linear2(x)
@@ -32,15 +32,15 @@ class Module:
                 return x
     """
 
-    def __call__(self, *args) -> Matrix:
+    def __call__(self, *args) -> Tensor:
         """Enable calling the module like a function."""
         return self.forward(*args)
 
-    def forward(self) -> Matrix:
+    def forward(self) -> Tensor:
         """Forward must be implemented by the subclass."""
         raise NotImplementedError("Implement in the subclass.")
 
-    def parameters(self) -> list[Matrix]:
+    def parameters(self) -> list[Tensor]:
         """Return a list of all parameters in the module."""
 
         # Collect all parameters by searching attributes for Module objects.
@@ -50,7 +50,7 @@ class Module:
             if isinstance(attr, Linear):
                 params.append(attr.W)
                 params.append(attr.b)
-            elif isinstance(attr, Matrix):
+            elif isinstance(attr, Tensor):
                 params.append(attr)
         return params
 
@@ -69,8 +69,8 @@ class Linear(Module):
         self.W = match.randn(out_features, in_features) * sqrt((2 / out_features) / 3)
         self.b = match.randn(out_features, 1) * sqrt((2 / out_features) / 3)
 
-    def forward(self, x: Matrix) -> Matrix:
-        # Returns a new Matrix
+    def forward(self, x: Tensor) -> Tensor:
+        # Returns a new Tensor
         return x @ self.W.T + self.b.T
 
     def __repr__(self) -> str:
@@ -80,22 +80,22 @@ class Linear(Module):
 class ReLU(Module):
     """ReLU(x) = max(0, x)"""
 
-    def forward(self, x: Matrix) -> Matrix:
-        # Returns a new Matrix
+    def forward(self, x: Tensor) -> Tensor:
+        # Returns a new Tensor
         return x.relu()
 
 
 class Sigmoid(Module):
     """Sigmoid(x) = 1 / (1 + e^(-x))"""
 
-    def forward(self, x: Matrix) -> Matrix:
-        # Returns a new Matrix
+    def forward(self, x: Tensor) -> Tensor:
+        # Returns a new Tensor
         return x.sigmoid()
 
 
 class MSELoss(Module):
     """loss = (1/N) * Σ (yhati - yi)^2"""
 
-    def forward(self, prediction: Matrix, target: Matrix) -> Matrix:
-        # Returns a new Matrix
+    def forward(self, prediction: Tensor, target: Tensor) -> Tensor:
+        # Returns a new Tensor
         return ((target - prediction) ** 2).mean()

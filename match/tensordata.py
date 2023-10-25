@@ -3,7 +3,7 @@ import itertools
 from math import exp, ceil, prod
 from operator import add, ge, gt, le, lt, mul, pow
 from random import gauss
-from copy import deepcopy
+from copy import deepcopy 
 from typing import Callable, Union
 from .util import (
     relu,
@@ -45,7 +45,7 @@ class TensorData(object):
             dtype (type): The type of the values in the Tensor
         """
         super().__init__()
-
+        assert all(isinstance(dim, int) for dim in size), f"Size {size} must be a variadict of only integers"
         self.shape: tuple[int] = size
         self.dtype: type = dtype
         self.__initialize_tensor_data(value)
@@ -474,8 +474,11 @@ class TensorData(object):
 
     def __set(self, val) -> None:
         """Internal method to set all values in the TensorData to val."""
-        for td in self._data:
-            td._item = val
+        if not self._data:
+            self._item = val
+        else:
+            for td in self._data:
+                td._item = val
 
     def __binary_op(
         self, op: Callable, rhs: Union[float, int, TensorData]
@@ -554,6 +557,13 @@ class TensorData(object):
     def __gt__(self, rhs: Union[float, int, TensorData]) -> TensorData:
         """Element-wise comparison: self > rhs."""
         return self.__binary_op(gt, rhs)
+    
+    @property
+    def vals(self) -> list:
+        if not self._data:
+            return [self._item]
+        
+        return [td.item() for td in self._data]
 
     def __matmul__(self, rhs: TensorData) -> TensorData:
         """N-dimensional tensor multiplication
@@ -706,3 +716,5 @@ class TensorData(object):
             new_tensor.reshape_(new_shape)
 
             return new_tensor
+        
+
