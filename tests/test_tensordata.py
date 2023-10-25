@@ -39,10 +39,11 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor_1._data = [TensorData(value=i) for i in range(24)]
 
         product_tensor = match_tensor_1 @ match_tensor_2
+        torch_result = torch_tensor_1 @ torch_tensor_2
 
-        self.assertEqual(product_tensor.shape, (2, 4))
+        self.assertEqual(product_tensor.shape, torch_result.shape)
 
-        self.assertTrue(almost_equal(product_tensor, torch_tensor_1 @ torch_tensor_2))
+        self.assertTrue(almost_equal(product_tensor, torch_result))
         self.assertEqual(match_tensor_2.shape, (3,))
 
     def test_matmul_1d_nd(self):
@@ -56,10 +57,11 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor_2._data = [TensorData(value=i) for i in range(24)]
 
         product_tensor = match_tensor_1 @ match_tensor_2
+        torch_result = torch_tensor_1 @ torch_tensor_2
 
-        self.assertEqual(product_tensor.shape, (2, 3))
+        self.assertEqual(product_tensor.shape, torch_result.shape)
 
-        self.assertTrue(almost_equal(product_tensor, torch_tensor_1 @ torch_tensor_2))
+        self.assertTrue(almost_equal(product_tensor, torch_result))
         self.assertEqual(match_tensor_1.shape, (4,))
 
     def test_matmul_nd_nd(self):
@@ -73,10 +75,11 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor_2._data = [TensorData(value=i) for i in range(24)]
 
         product_tensor = match_tensor_1 @ match_tensor_2
+        torch_result = torch_tensor_1 @ torch_tensor_2
 
-        self.assertEqual(product_tensor.shape, (2, 2, 7, 3))
+        self.assertEqual(product_tensor.shape, torch_result.shape)
 
-        self.assertTrue(almost_equal(product_tensor, torch_tensor_1 @ torch_tensor_2))
+        self.assertTrue(almost_equal(product_tensor, torch_result))
 
     def test_matmul_2d_1d(self):
         torch_tensor_1 = torch.arange(56).reshape(7, 8)
@@ -89,11 +92,12 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor_2._data = [TensorData(value=i) for i in range(8)]
 
         product_tensor = match_tensor_1 @ match_tensor_2
+        torch_result = torch_tensor_1 @ torch_tensor_2
 
-        self.assertEqual(product_tensor.shape, (7,))
+        self.assertEqual(product_tensor.shape, torch_result.shape)
         self.assertEqual(product_tensor._item, None)
 
-        self.assertTrue(almost_equal(product_tensor, torch_tensor_1 @ torch_tensor_2))
+        self.assertTrue(almost_equal(product_tensor, torch_result))
 
     def test_matmul_1d_2d(self):
         torch_tensor_1 = torch.arange(8).reshape(8)
@@ -106,11 +110,12 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor_2._data = [TensorData(value=i) for i in range(16)]
 
         product_tensor = match_tensor_1 @ match_tensor_2
+        torch_result = torch_tensor_1 @ torch_tensor_2
 
-        self.assertEqual(product_tensor.shape, (2,))
+        self.assertEqual(product_tensor.shape, torch_result.shape)
         self.assertEqual(product_tensor._item, None)
 
-        self.assertTrue(almost_equal(product_tensor, torch_tensor_1 @ torch_tensor_2))
+        self.assertTrue(almost_equal(product_tensor, torch_result))
 
     def test_matmul_2d_2d(self):
         torch_tensor_1 = torch.arange(56).reshape(7, 8)
@@ -123,11 +128,12 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor_2._data = [TensorData(value=i) for i in range(16)]
 
         product_tensor = match_tensor_1 @ match_tensor_2
+        torch_result = torch_tensor_1 @ torch_tensor_2
 
-        self.assertEqual(product_tensor.shape, (7, 2))
+        self.assertEqual(product_tensor.shape, torch_result.shape)
         self.assertEqual(product_tensor._item, None)
 
-        self.assertTrue(almost_equal(product_tensor, torch_tensor_1 @ torch_tensor_2))
+        self.assertTrue(almost_equal(product_tensor, torch_result))
 
     def test_matmul_1d_1d(self):
         match_tensor_1 = TensorData(9)

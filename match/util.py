@@ -51,6 +51,10 @@ def get_common_broadcast_shape(shape1, shape2):
 
     return new_shape
 
+def dot(l1: Iterable, l2: Iterable):
+    """Compute the inner product of two iterable objects, a*b"""
+    return sum(i * j for i, j in zip(l1, l2))
+
 
 def matmul_2d(l1: Iterable, shape1: tuple, l2: Iterable, shape2: tuple) -> tuple:
     """Compute l1 @ l2"""
