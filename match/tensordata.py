@@ -627,6 +627,7 @@ class TensorData(object):
         # N-dimensional (where N > 2), then a batched matrix multiply is returned.
         elif (lhs_dims >= 1 and rhs_dims >= 1) and (lhs_dims > 2 or rhs_dims > 2):
             # If the first argument is 1-dimensional, a 1 is prepended to its dimension
+            # TODO(SAM): make a copy of lhs and rhs and use that instead of shaping the original object
             if lhs_dims == 1:
                 lhs.reshape_((1,) + lhs_shape)
             # If the second argument is 1-dimensional, a 1 is appended to its dimension
