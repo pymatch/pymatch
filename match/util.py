@@ -10,6 +10,11 @@ from itertools import zip_longest
 Number: type = Union[float, int]
 
 
+def all_coordinates(shape: tuple):
+    possible_indices = [range(dim) for dim in shape]
+    return itertools.product(*possible_indices)
+
+
 def relu(n: Number) -> Number:
     return max(0, n)
 
@@ -46,21 +51,25 @@ def get_common_broadcast_shape(shape1, shape2):
 
     return new_shape
 
+def dot(l1: Iterable, l2: Iterable):
+    """Compute the inner product of two iterable objects, a*b"""
+    return sum(i * j for i, j in zip(l1, l2))
+
 
 def matmul_2d(l1: Iterable, shape1: tuple, l2: Iterable, shape2: tuple) -> tuple:
     """Compute l1 @ l2"""
     # return the new list of data, and the new shape
     if len(shape1) != 2 or len(shape2) != 2 or shape1[-1] != shape2[0]:
         raise ValueError("Inconsistent shapes for 2d matrix multiplication")
+    
     result_shape = (shape1[0], shape2[1])
     result_data = [0] * (result_shape[0] * result_shape[1])
-
+    
     for i in range(result_shape[0]):
         for j in range(result_shape[1]):
             # Compute the dot product of the i-th row of l1 and the j-th column of l2
             dot_product = 0
             for k in range(shape1[1]):
-                # TODO(Sam): Reimplement so it uses ._data directly instead of calling the getitem and setitem methods
                 dot_product += l1[i * shape1[1] + k] * l2[k * shape2[1] + j]
             result_data[i * result_shape[1] + j] = dot_product
 
