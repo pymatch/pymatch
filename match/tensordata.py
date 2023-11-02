@@ -402,13 +402,65 @@ class TensorData(object):
 
     def __all_coordinates(self):
         return all_coordinates(self.shape)
+    
+    def sum_along_axes(self, axes: list | int = 0, keepdims: bool = False) -> TensorData:
+        """Return a new TensorData object summed along the axis
+        if coord is (2,3) and sum alon axis=1, then we increment the value at (2,0) in the new tensor by the 
+       value at (2,3) in the original tensor. initialize new tensor to be all zeros with the new shape.
+       keepdims = True by default (as far as algorithm is cocnerned), then keepdims = false will simply call a 
+       reshape
+       for a given coordinate, set all dimensins to 0 for every axis we're trying to sum over
 
-    def unbroadcast(self, *shape: int):
-        """Return a new TensorData unbroadcast from current shape to desired shape."""
-        if self.shape == shape:
-            return self
-        # TODO (SAM) : Complete unbroadcast.
-        raise NotImplementedError
+       initialize new tensor with new shape (depending on keepdims) to all 0's
+       for (x1, x2, ...) in orig.all_coordinate()
+       new_coordinate = [0 if dim in axes else val for dim, val in enumerate((x1, x2, ...))]
+       new_tensor[new_coordinate] += orig[(x1, x2, ...)]
+
+       return new_tensor
+       """
+        if isinstance(axes, int):
+            axes = [axes]
+
+        if any(ax < 0 or ax >= len(self.shape) for ax in axes):
+            raise ValueError(f"Axes should be in bounds 0 and {len(self.shape)}-1")
+        
+        new_shape = tuple(1 if dim in axes else val for dim, val in enumerate(self.shape))
+        new_tensor = TensorData(*new_shape, value=0) # Must initialize to 0
+        # for every coordinate in the original tensor
+        for orig_index, orig_coord in enumerate(self.__all_coordinates()):
+            new_coord = tuple(0 if dim in axes else val for dim, val in enumerate(orig_coord))
+            new_coord_index = new_tensor.__multi_to_single_rank_translation(new_coord)
+            new_tensor._data[new_coord_index]._item += self._data[orig_index]._item
+       
+        if not keepdims:
+            # remove the dimensions that were summed out (changed to 1's), i.e., the dimensions in axes
+            new_shape = []
+            for dim, val in enumerate(self.shape):
+                if dim not in axes:
+                    new_shape.append(val)
+            new_tensor.reshape(*new_shape)
+       
+        return new_tensor
+
+    def unbroadcast(self, *shape: int) -> TensorData:
+        """Return a new TensorData unbroadcast from current shape to desired shape.
+        
+        Reference to this: https://mostafa-samir.github.io/auto-diff-pt2/#unbroadcasting-adjoints
+        """
+        # change to shallow copy
+        correct_adjoint = self
+        
+        if self.shape != shape:
+            dim_diff = abs(len(self.shape) - len(shape))
+            if dim_diff: # != 0
+                summation_dims = tuple(range(dim_diff))
+                correct_adjoint = self.sum_along_axes(axes = summation_dims)
+
+                originally_ones = tuple([axis for axis, size in enumerate(shape) if size == 1])
+                if len(originally_ones) != 0:
+                    correct_adjoint = correct_adjoint.sum_along_axes(correct_adjoint, axes=originally_ones, keepdims=True)
+
+        return correct_adjoint
 
     def ones_(self) -> None:
         """Modify all values in the tensor to be 1.0."""
@@ -418,10 +470,12 @@ class TensorData(object):
         """Modify all values in the tensor to be 0.0."""
         self.__set(0.0)
 
+    # TODO(SAM): return a singleton tensordata object instead of float
     def sum(self) -> float:
         """Compute the sum of all values in the tensor."""
         return sum(td._item for td in self._data)
 
+    # TODO(SAM): return a singleton tensordata object instead of float
     def mean(self) -> float:
         """Compute the mean of all values in the tensor."""
         return self.sum() / len(self._data)

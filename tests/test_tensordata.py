@@ -28,6 +28,25 @@ def same_references(match_tensor1: TensorData, match_tensor2: TensorData):
 
 
 class TestTensorDataTest(unittest.TestCase):
+    def test_sum_along_axis(self):
+        torch_tensor = torch.arange(24).reshape(2, 4, 3)
+
+        match_tensor = TensorData(2, 4, 3)
+        match_tensor._data = [TensorData(value=i) for i in range(24)]
+
+        self.assertTrue(
+            almost_equal(match_tensor.sum_along_axes((0,)), torch_tensor.sum((0,)))
+        )
+        self.assertTrue(
+            almost_equal(match_tensor.sum_along_axes((0, 1)), torch_tensor.sum((0, 1)))
+        )
+        self.assertTrue(
+            almost_equal(
+                match_tensor.sum_along_axes((1, 2), keepdims=True),
+                torch_tensor.sum((1, 2), keepdim=True),
+            )
+        )
+
     def test_matmul_nd_1d(self):
         torch_tensor_1 = torch.arange(24).reshape(2, 4, 3)
         torch_tensor_2 = torch.arange(3)
