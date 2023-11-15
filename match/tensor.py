@@ -200,3 +200,10 @@ class Tensor(object):
     def __neg__(self) -> Tensor:
         """Element-wise unary negation: -self."""
         return self * -1
+    
+    def __getitem__(self, coords) -> Tensor:
+        # What about children here???
+        return Tensor(data=self.data[coords])
+
+    def __setitem__(self,coords, value) -> None:
+        self.data[coords] = value

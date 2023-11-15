@@ -171,6 +171,7 @@ class TensorData(object):
                     f"shape {shape} is invalid for input of size {len(self._data)}"
                 )
             self.shape = shape
+            self._item = None
         # The strides change when the shape does, so they must be reinitialized.
         self.__initialize_strides()
 

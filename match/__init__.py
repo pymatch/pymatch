@@ -1,11 +1,12 @@
-from .tensor import Tensor, TensorData
+from .tensor import Tensor
+from .tensordata import TensorData
 from .nn import *
 from operator import add, ge, gt, le, lt, mul, pow
 from math import exp, ceil, prod
 from random import gauss
 
 
-def randn(*shape, generator=gauss) -> Tensor:
+def randn(*shape, generator=lambda: gauss(0, 1)) -> Tensor:
     if isinstance(shape[0], tuple):
         shape = shape(0)
     if not shape:
