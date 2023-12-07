@@ -66,8 +66,8 @@ class Linear(Module):
     def __init__(self, in_features, out_features) -> None:
         super().__init__()
         # Kaiming He initialization
-        self.W = match.randn(out_features, in_features) * sqrt((2 / out_features) / 3)
-        self.b = match.randn(out_features, 1) * sqrt((2 / out_features) / 3)
+        self.W = Tensor.randn(out_features, in_features) * sqrt((2 / out_features) / 3)
+        self.b = Tensor.randn(out_features, 1) * sqrt((2 / out_features) / 3)
 
     def forward(self, x: Tensor) -> Tensor:
         # Returns a new Tensor

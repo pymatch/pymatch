@@ -3,7 +3,7 @@ import itertools
 from math import exp, ceil, prod
 from operator import add, ge, gt, le, lt, mul, pow
 from random import gauss
-from copy import deepcopy 
+from copy import deepcopy
 from typing import Callable, Union
 from .util import (
     relu,
@@ -12,7 +12,7 @@ from .util import (
     get_common_broadcast_shape,
     matmul_2d,
     all_coordinates,
-    dot
+    dot,
 )
 
 
@@ -45,7 +45,9 @@ class TensorData(object):
             dtype (type): The type of the values in the Tensor
         """
         super().__init__()
-        assert all(isinstance(dim, int) for dim in size), f"Size {size} must be a variadict of only integers"
+        assert all(
+            isinstance(dim, int) for dim in size
+        ), f"Size {size} must be a variadict of only integers"
         self.shape: tuple[int] = size
         self.dtype: type = dtype
         self.__initialize_tensor_data(value)
@@ -402,36 +404,42 @@ class TensorData(object):
 
     def __all_coordinates(self):
         return all_coordinates(self.shape)
-    
-    def sum_along_axes(self, axes: list | int = 0, keepdims: bool = False) -> TensorData:
+
+    def sum_along_axes(
+        self, axes: list | int = 0, keepdims: bool = False
+    ) -> TensorData:
         """Return a new TensorData object summed along the axis
-        if coord is (2,3) and sum alon axis=1, then we increment the value at (2,0) in the new tensor by the 
-       value at (2,3) in the original tensor. initialize new tensor to be all zeros with the new shape.
-       keepdims = True by default (as far as algorithm is cocnerned), then keepdims = false will simply call a 
-       reshape
-       for a given coordinate, set all dimensins to 0 for every axis we're trying to sum over
+         if coord is (2,3) and sum alon axis=1, then we increment the value at (2,0) in the new tensor by the
+        value at (2,3) in the original tensor. initialize new tensor to be all zeros with the new shape.
+        keepdims = True by default (as far as algorithm is cocnerned), then keepdims = false will simply call a
+        reshape
+        for a given coordinate, set all dimensins to 0 for every axis we're trying to sum over
 
-       initialize new tensor with new shape (depending on keepdims) to all 0's
-       for (x1, x2, ...) in orig.all_coordinate()
-       new_coordinate = [0 if dim in axes else val for dim, val in enumerate((x1, x2, ...))]
-       new_tensor[new_coordinate] += orig[(x1, x2, ...)]
+        initialize new tensor with new shape (depending on keepdims) to all 0's
+        for (x1, x2, ...) in orig.all_coordinate()
+        new_coordinate = [0 if dim in axes else val for dim, val in enumerate((x1, x2, ...))]
+        new_tensor[new_coordinate] += orig[(x1, x2, ...)]
 
-       return new_tensor
-       """
+        return new_tensor
+        """
         if isinstance(axes, int):
             axes = [axes]
 
         if any(ax < 0 or ax >= len(self.shape) for ax in axes):
             raise ValueError(f"Axes should be in bounds 0 and {len(self.shape)}-1")
-        
-        new_shape = tuple(1 if dim in axes else val for dim, val in enumerate(self.shape))
-        new_tensor = TensorData(*new_shape, value=0) # Must initialize to 0
+
+        new_shape = tuple(
+            1 if dim in axes else val for dim, val in enumerate(self.shape)
+        )
+        new_tensor = TensorData(*new_shape, value=0)  # Must initialize to 0
         # for every coordinate in the original tensor
         for orig_index, orig_coord in enumerate(self.__all_coordinates()):
-            new_coord = tuple(0 if dim in axes else val for dim, val in enumerate(orig_coord))
+            new_coord = tuple(
+                0 if dim in axes else val for dim, val in enumerate(orig_coord)
+            )
             new_coord_index = new_tensor.__multi_to_single_rank_translation(new_coord)
             new_tensor._data[new_coord_index]._item += self._data[orig_index]._item
-       
+
         if not keepdims:
             # remove the dimensions that were summed out (changed to 1's), i.e., the dimensions in axes
             new_shape = []
@@ -439,26 +447,30 @@ class TensorData(object):
                 if dim not in axes:
                     new_shape.append(val)
             new_tensor.reshape(*new_shape)
-       
+
         return new_tensor
 
     def unbroadcast(self, *shape: int) -> TensorData:
         """Return a new TensorData unbroadcast from current shape to desired shape.
-        
+
         Reference to this: https://mostafa-samir.github.io/auto-diff-pt2/#unbroadcasting-adjoints
         """
-        # change to shallow copy
+        # TODO(SAM): Change to shallow copy.
         correct_adjoint = self
-        
+
         if self.shape != shape:
             dim_diff = abs(len(self.shape) - len(shape))
-            if dim_diff: # != 0
+            if dim_diff:  # != 0
                 summation_dims = tuple(range(dim_diff))
-                correct_adjoint = self.sum_along_axes(axes = summation_dims)
+                correct_adjoint = self.sum_along_axes(axes=summation_dims)
 
-                originally_ones = tuple([axis for axis, size in enumerate(shape) if size == 1])
+                originally_ones = tuple(
+                    [axis for axis, size in enumerate(shape) if size == 1]
+                )
                 if len(originally_ones) != 0:
-                    correct_adjoint = correct_adjoint.sum_along_axes(correct_adjoint, axes=originally_ones, keepdims=True)
+                    correct_adjoint = correct_adjoint.sum_along_axes(
+                        correct_adjoint, axes=originally_ones, keepdims=True
+                    )
 
         return correct_adjoint
 
@@ -478,7 +490,10 @@ class TensorData(object):
     # TODO(SAM): return a singleton tensordata object instead of float
     def mean(self) -> float:
         """Compute the mean of all values in the tensor."""
-        return self.sum() / len(self._data)
+        return self.sum() / self.numel()
+
+    def numel(self) -> int:
+        return len(self._data)
 
     def relu(self) -> TensorData:
         """Return a new TensorData object with the ReLU of each element."""
@@ -611,12 +626,12 @@ class TensorData(object):
     def __gt__(self, rhs: Union[float, int, TensorData]) -> TensorData:
         """Element-wise comparison: self > rhs."""
         return self.__binary_op(gt, rhs)
-    
+
     @property
     def vals(self) -> list:
         if not self._data:
             return [self._item]
-        
+
         return [td.item() for td in self._data]
 
     def __matmul__(self, rhs: TensorData) -> TensorData:
@@ -626,18 +641,18 @@ class TensorData(object):
 
         2. If both arguments are 2-dimensional, the matrix-matrix product is returned.
 
-        3. If the first argument is 1-dimensional and the second argument is 2-dimensional, 
-           a 1 is prepended to its dimension for the purpose of the matrix multiply. 
+        3. If the first argument is 1-dimensional and the second argument is 2-dimensional,
+           a 1 is prepended to its dimension for the purpose of the matrix multiply.
            After the matrix multiply, the prepended dimension is removed.
 
-        4. If the first argument is 2-dimensional and the second argument is 1-dimensional, 
+        4. If the first argument is 2-dimensional and the second argument is 1-dimensional,
            the matrix-vector product is returned.
 
-        5. If both arguments are at least 1-dimensional and at least one argument is N-dimensional 
-           (where N > 2), then a batched matrix multiply is returned. If the first argument 
-           is 1-dimensional, a 1 is prepended to its dimension for the purpose of the batched 
-           matrix multiply and removed after. If the second argument is 1-dimensional, a 1 is 
-           appended to its dimension for the purpose of the batched matrix multiple and removed after. 
+        5. If both arguments are at least 1-dimensional and at least one argument is N-dimensional
+           (where N > 2), then a batched matrix multiply is returned. If the first argument
+           is 1-dimensional, a 1 is prepended to its dimension for the purpose of the batched
+           matrix multiply and removed after. If the second argument is 1-dimensional, a 1 is
+           appended to its dimension for the purpose of the batched matrix multiple and removed after.
            The non-matrix (i.e. batch) dimensions are broadcasted (and thus must be broadcastable).
 
         See https://pytorch.org/docs/stable/generated/torch.matmul.html for more information
@@ -770,5 +785,3 @@ class TensorData(object):
             new_tensor.reshape_(new_shape)
 
             return new_tensor
-        
-
