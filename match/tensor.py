@@ -64,7 +64,7 @@ class Tensor(object):
 
     def sum(self) -> Tensor:
         """Return the sum of all values across both dimensions."""
-        result = Tensor(TensorData(value = self.data.sum()), children=(self,))
+        result = Tensor(TensorData(value=self.data.sum()), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of summation. Shape: {self.shape}")
@@ -75,11 +75,11 @@ class Tensor(object):
 
     def mean(self) -> Tensor:
         """Return the mean of all values across both dimensions."""
-        result = Tensor(TensorData(value = self.data.mean()), children=(self,))
+        result = Tensor(TensorData(value=self.data.mean()), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of mean. Shape: {self.shape}")
-            n = len(self.data._data) # Equivalent to prod(self.shape), just cheaper.
+            n = len(self.data._data)  # Equivalent to prod(self.shape), just cheaper.
             self.grad += TensorData(*self.shape, value=result.data.item() / n)
 
         result._gradient = _gradient
@@ -161,7 +161,7 @@ class Tensor(object):
     def __matmul__(self, rhs: Tensor) -> Tensor:
         """Tensor multiplication: self @ rhs."""
         assert isinstance(rhs, Tensor), f"Wrong type: {type(rhs)}"
-        
+
         result = Tensor(self.data @ rhs.data, children=(self, rhs))
 
         def _gradient() -> None:
@@ -200,10 +200,41 @@ class Tensor(object):
     def __neg__(self) -> Tensor:
         """Element-wise unary negation: -self."""
         return self * -1
-    
+
     def __getitem__(self, coords) -> Tensor:
         # What about children here???
-        return Tensor(data=self.data[coords])
+        return Tensor(data=self.data[coords], children=())
 
-    def __setitem__(self,coords, value) -> None:
+    def __setitem__(self, coords, value) -> None:
         self.data[coords] = value
+
+    # Implement gradient for these functions
+    # unpermuting and un-reshaping
+
+    def reshape(self, *shape: int) -> Tensor:
+        """Helper method to reshape and return a new TensorData object without changing the data"""
+        # The reshape method can accept either a variadict or a tuple.
+        result: Tensor = Tensor(self.data.reshape(shape), children=(self,))
+
+        def _gradient() -> None:
+            info(f"Gradient of reshape. Shape: {self.shape}")
+            # Permuting the result with the same parameter (reverse)
+            self.grad += result.grad.reshape(*self.shape)
+
+        result._gradient = _gradient
+        return result
+
+    def permute(self, *dims: int) -> Tensor:
+        # the gradient is the permute of itself
+        # permute (0,1,2,3) into (1,0,3,2)...
+        # the gradient would be permuting (1,0,3,2) using (1,0,3,2) to get (0,1,2,3) again
+
+        result: Tensor = Tensor(self.data.permute(*dims), children=(self,))
+
+        def _gradient() -> None:
+            info(f"Gradient of permute. Shape: {self.shape}")
+            # Permuting the result with the same parameter (reverse)
+            self.grad += result.grad.permute(*dims)
+
+        result._gradient = _gradient
+        return result

@@ -194,10 +194,11 @@ class Conv2d(Module):
             permute_shape = (0, 2, 1)
         else:
             permute_shape = (1, 0)
-        
+
         # What about gradient here?
-        convolution_tensor.data = convolution_tensor.data.permute(*permute_shape)
-        convolution_tensor.shape = convolution_tensor.data.shape
+        #  convolution_tensor.data = convolution_tensor.data.permute(*permute_shape)
+        #  convolution_tensor.shape = convolution_tensor.data.shape
+        convolution_tensor = convolution_tensor.permute(*permute_shape)
         print(
             f"Convolution tensor transpose shape: {convolution_tensor.shape} ... should be {(N, self.out_channels, int(len(kernel_positions)/N))}"
         )
@@ -206,13 +207,14 @@ class Conv2d(Module):
 
         # What about th gradient here?
         if len(x.shape) == 4:
-            convolution_tensor.data.reshape_(
-                (N, self.out_channels, height_out, width_out)
+            convolution_tensor = convolution_tensor.reshape(
+                N, self.out_channels, height_out, width_out
             )
         else:
-            convolution_tensor.data.reshape_((self.out_channels, height_out, width_out))
+            convolution_tensor = convolution_tensor.reshape(
+                self.out_channels, height_out, width_out
+            )
 
-        convolution_tensor.shape = convolution_tensor.data.shape
         print(
             f"Final shape: {convolution_tensor.shape} ... should be {(N, self.out_channels, height_out, width_out)}"
         )

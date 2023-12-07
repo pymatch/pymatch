@@ -498,6 +498,7 @@ class TensorData(object):
     def permute(self, *dims: int) -> TensorData:
         """Return an aliased TensorData object with a permutation of its original dimensions permuted"""
         if not is_permutation([i for i in range(len(self.shape))], dims):
+            print(dims)
             raise RuntimeError(
                 "provided dimension tuple is not a valid permutation of the column indices of this tensor"
             )
