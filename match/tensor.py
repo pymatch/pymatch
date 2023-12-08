@@ -5,6 +5,10 @@ from logging import info
 
 from .tensordata import TensorData
 
+from operator import add, ge, gt, le, lt, mul, pow
+from math import exp, ceil, prod
+from random import gauss
+
 
 class Tensor(object):
     def __init__(self, data: TensorData, children: tuple = ()) -> None:
@@ -23,6 +27,18 @@ class Tensor(object):
 
     def __str__(self) -> str:
         return self.__repr__()
+
+    def randn(*shape, generator=lambda: gauss(0, 1)) -> Tensor:
+        if isinstance(shape[0], tuple):
+            shape = shape(0)
+        if not shape:
+            return Tensor(TensorData(value=generator()))
+
+        rand_tensordata = TensorData(0)
+        data = [TensorData(value=generator()) for _ in range(prod(shape))]
+        rand_tensordata._data = data
+        rand_tensordata.reshape_(shape)
+        return Tensor(rand_tensordata)
 
     def backward(self) -> None:
         """Compute all gradients using backpropagation."""
@@ -61,6 +77,10 @@ class Tensor(object):
 
         result._gradient = _gradient
         return result
+    
+    @property
+    def numel(self) -> int:
+        return len(self.data._data)
 
     def sum(self) -> Tensor:
         """Return the sum of all values across both dimensions."""
@@ -79,8 +99,8 @@ class Tensor(object):
 
         def _gradient() -> None:
             info(f"Gradient of mean. Shape: {self.shape}")
-            n = len(self.data._data)  # Equivalent to prod(self.shape), just cheaper.
-            self.grad += TensorData(*self.shape, value=result.data.item() / n)
+            self.grad += TensorData(*self.shape, value=result.data.item() / self.numel)
+
 
         result._gradient = _gradient
         return result

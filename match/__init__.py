@@ -17,3 +17,4 @@ def randn(*shape, generator=lambda: gauss(0, 1)) -> Tensor:
     rand_tensordata._data = data
     rand_tensordata.reshape_(shape)
     return Tensor(rand_tensordata)
+
