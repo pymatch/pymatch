@@ -10,6 +10,7 @@
     "numba",
     "numpy",
     "pybind",
-    "pypy",
+    "pymatch",
+    "pypy"
   ]
 }

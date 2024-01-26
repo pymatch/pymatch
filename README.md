@@ -21,8 +21,6 @@ We could also replace the pure-python `TensorData` with an extension or numpy (I
 
 ## Log/Notes
 
-TODO:
-
 - Add in-place operations in `TensorData` such as `x.add_`, `x.radd_`, etc.
 - Upgrade to 3.12, create a virtual environment, prof clark uses [miniforge](https://github.com/conda-forge/miniforge)
 - Add note in readme about how to create my virtual environment
