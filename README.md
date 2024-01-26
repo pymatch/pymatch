@@ -1,6 +1,6 @@
 # pymatch
 
-A pure-Python, PyTorch-like automatic differentiation library for education.
+A simple, PyTorch-like automatic differentiation library for education.
 
 Try running with
 
