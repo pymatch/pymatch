@@ -6,7 +6,7 @@
   <img alt="Match" height="128" src="images/MatchLogoLight.png">
 </picture>
 <p>
-A pure-Python, PyTorch-like automatic differentiation library for education.
+A simple, PyTorch-like automatic differentiation library for education.
 </p>
 
 </div>
@@ -14,17 +14,22 @@ A pure-Python, PyTorch-like automatic differentiation library for education.
 # File Structure
 
 ```text
-.
-├── match               # The Match library
-│  ├── __init__.py      # --- contains default import statements
-│  ├── list2d.py        # --- a storage class for matrix data
-│  ├── matrix.py        # --- a 2D matrix class (including autodiff)
-│  └── nn.py            # --- higher-level neural network functionality
-├── demo_linear.ipynb   # A linear model demo (Jupyter)
-├── demo_linear.py      # A linear model demo (script)
-├── test.py             # Unit-tests for correctness
-├── LICENSE             # MIT License
-└── README.md           # This document
+ ./                         #
+├──  examples/              #
+│  └──  linear_model.ipynb  #
+├──  src/                   #
+│  └──  match/              # The Match library source code
+│     ├──  __init__.py      # -- default library import statements
+│     ├──  nn.py            # -- higher-level neural network functionality
+│     ├──  tensor.py        # -- an automatic differentiation tensor class
+│     ├──  tensordata.py    # -- a storage class for tensor data
+│     └──  util.py          # -- utility functions
+├──  tests/                 #
+│  ├──  __init__.py         #
+│  └──  test_tensordata.py  #
+├──  pyproject.toml         #
+├──  LICENSE                #
+└──  README.md              #
 ```
 
 # Demos

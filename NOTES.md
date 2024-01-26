@@ -1,6 +1,4 @@
-# pymatch
-
-A simple, PyTorch-like automatic differentiation library for education.
+# Development Notes
 
 I'm not sure that we'll want to add this to the Python Package Index. The intended use is for reading through the code, not using as an installable library.
 
@@ -24,6 +22,7 @@ We could also replace the pure-python `TensorData` with an extension or numpy (I
 - Add in-place operations in `TensorData` such as `x.add_`, `x.radd_`, etc.
 - Upgrade to 3.12, create a virtual environment, prof clark uses [miniforge](https://github.com/conda-forge/miniforge)
 - Add note in readme about how to create my virtual environment
+- Update readme
 
 10/25
 
