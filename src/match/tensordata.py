@@ -1,18 +1,20 @@
 from __future__ import annotations
+
 import itertools
-from math import exp, ceil, prod
+from copy import deepcopy
+from math import ceil, exp, prod
 from operator import add, ge, gt, le, lt, mul, pow
 from random import gauss
-from copy import deepcopy
 from typing import Callable, Union
+
 from .util import (
-    relu,
-    sigmoid,
-    is_permutation,
-    get_common_broadcast_shape,
-    matmul_2d,
     all_coordinates,
     dot,
+    get_common_broadcast_shape,
+    is_permutation,
+    matmul_2d,
+    relu,
+    sigmoid,
 )
 
 
@@ -45,9 +47,10 @@ class TensorData(object):
             dtype (type): The type of the values in the Tensor
         """
         super().__init__()
-        assert all(
-            isinstance(dim, int) for dim in size
-        ), f"Size {size} must be a variadict of only integers"
+        # NOTE: the isinstance check is horribly inefficient
+        # assert all(
+        #     isinstance(dim, int) for dim in size
+        # ), f"Size {size} must be a variadict of only integers"
         self.shape: tuple[int] = size
         self.dtype: type = dtype
         self.__initialize_tensor_data(value)

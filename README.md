@@ -11,6 +11,24 @@ A simple, PyTorch-like automatic differentiation library for education.
 
 </div>
 
+# Quick Start
+
+```bash
+# Create a new virtual environment
+mamba create --name match python
+conda activate match
+
+# Clone the repository
+cd path/to/your/projects
+git clone https://github.com/pymatch/pymatch
+cd pymatch
+
+# Install the library
+python -m pip install --editable .
+
+# TODO: run simple script? (demos and unit tests have external dependencies)
+```
+
 # File Structure
 
 ```text
@@ -245,16 +263,12 @@ To recap:
 
 # Testing
 
-The library has a limited number of tests in the file `test.py` found in the root directory. Unit tests require the PyTorch library. They should be executed with:
+The library has a limited number of tests found in the file `tests` directory. Match unit tests require the PyTorch library. and you can run them with:
 
 ```bash
-# Run this command from the root of the repository (test.py should be in the root)
-python -m unittest test
+# Run this command from the root of the repository
+python -m unittest
 ```
-
-# Sandbox
-
-The `sandbox` directory can be ignored. That is where I am putting ideas for future updates.
 
 # Resources
 
