@@ -1,11 +1,11 @@
 import itertools
-from math import exp, ceil, prod
+from collections import Counter
+from copy import deepcopy
+from itertools import zip_longest
+from math import ceil, exp, prod
 from operator import add, ge, gt, le, lt, mul, pow
 from random import gauss
-from copy import deepcopy
-from typing import Callable, Union, Iterable
-from collections import Counter
-from itertools import zip_longest
+from typing import Callable, Iterable, Union
 
 Number: type = Union[float, int]
 
@@ -47,7 +47,7 @@ def get_common_broadcast_shape(shape1, shape2):
         elif dim1 == dim2:
             new_shape.append(dim1)
         else:
-            raise ValueError("Incompatible dimensions for broadcasting")
+            raise ValueError(f"Incompatible dimensions for broadcasting: {dim1} and {dim2}")
 
     return new_shape
 
@@ -125,12 +125,12 @@ def get_kernel_position_slices_conv2d(
 #         )
 #         for h in range(0, height_in - kernel_height + 1, stride[0])
 #         for c in range(0, width_in - kernel_width + 1, stride[1])
-#         
+#
 #     ]
 
     if len(tensor_shape) == 4:
         instance_kernel_positions = [
-            (n,) + position for n in range(N) for position in instance_kernel_positions 
+            (n,) + position for n in range(N) for position in instance_kernel_positions
         ]
 
     return tuple(instance_kernel_positions), height_out, width_out
