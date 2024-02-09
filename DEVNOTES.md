@@ -2,6 +2,16 @@
 
 I'm not sure that we'll want to add this to the Python Package Index. The intended use is for reading through the code, not using as an installable library.
 
+## Notes on C Extension
+~~~bash
+# Initial install (no --editable flag)
+python -m pip install .
+
+# Reinstall after changes
+python -m pip install --upgrade --force-reinstall .
+~~~
+
+
 ## Alternative Python Implementations
 
 We might need to run `match` using one of these alternative Python implementations to see if we can get a speedup.
