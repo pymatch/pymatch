@@ -6,8 +6,11 @@
 // - what to do about data types? (void * everywhere?)
 // - allow use as base class?
 // - iterable
-// - implement buffer protocol
+// - implement buffer protocol?
+//      - http://jakevdp.github.io/blog/2014/05/05/introduction-to-the-python-buffer-protocol/
+//      - https://docs.python.org/3/c-api/buffer.html
 // - implement number protocol
+// - implement sequence protocol
 // - https://docs.python.org/3/c-api/structures.html#c.METH_FASTCALL
 
 // TODO: useful macros
