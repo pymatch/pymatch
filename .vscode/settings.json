@@ -2,15 +2,27 @@
   "[python]": {
     "editor.defaultFormatter": "ms-python.black-formatter"
   },
-  "python.formatting.provider": "none",
   "cSpell.words": [
+    "basicsize",
     "cython",
+    "DECREF",
+    "initproc",
+    "itemsize",
+    "kwds",
     "miniforge",
+    "MODINIT",
     "nanobind",
+    "ndim",
+    "NOARGS",
     "numba",
+    "numel",
     "numpy",
     "pybind",
     "pymatch",
-    "pypy"
-  ]
+    "pypy",
+    "repr",
+    "tensordata",
+    "TPFLAGS"
+  ],
+  "C_Cpp.errorSquiggles": "enabled"
 }
