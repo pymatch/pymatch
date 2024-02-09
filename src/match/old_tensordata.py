@@ -7,7 +7,8 @@ from operator import add, ge, gt, le, lt, mul, pow
 from random import gauss
 from typing import Callable, Union
 
-from .util import (
+# from .util import (
+from util import (
     all_coordinates,
     dot,
     get_common_broadcast_shape,
@@ -29,7 +30,7 @@ class TensorData(object):
     or a single value. For instance, a TensorData object's data list could
     look like [TensorData(0), TensorData(1), raise NotImplementedError, TensorData(47)].
     There are therefore two implicit types of TensorData objects. Ones
-    that store only a single value, accesible by .item(), and ones that
+    that store only a single value, accessible by .item(), and ones that
     store a list of these `singleton` TensorData objects.
 
     Using the provided shape of the TensorData object, accessing data using
