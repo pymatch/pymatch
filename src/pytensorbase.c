@@ -4,6 +4,13 @@
 
 #include "tensorbase.c"
 
+// https://getcode.substack.com/p/fun-and-hackable-tensors-in-rust
+// https://jessicastringham.net/2017/12/31/stride-tricks/
+// https://github.com/abeschneider/tensor/blob/master/include/tensor_ops.hpp
+// https://github.com/kurtschelfthout/tensorken
+// https://www.google.com/search?q=as%20strided%20broadcasting&ie=utf-8&oe=utf-8&client=firefox-b-1-m
+// https://www.google.com/search?client=firefox-b-1-m&sca_esv=da8adb7374804231&q=as+strided+convolution&oq=as+strided+convolution&aqs=heirloom-srp..
+
 // TODO:
 // - what to do about data types? (void * everywhere?)
 // - allow use as base class?
@@ -31,30 +38,46 @@
 // - PyDoc_STR(str)
 
 // ----------------------------------------------------------------
-// ▗▄▄▖           ▗▄▄▄▖                         ▗▄▄
-// ▐▛▀▜▖          ▝▀█▀▘                         ▐▛▀█       ▐▌
-// ▐▌ ▐▌▝█ █▌       █   ▟█▙ ▐▙██▖▗▟██▖ ▟█▙  █▟█▌▐▌ ▐▌ ▟██▖▐███  ▟██▖
-// ▐██▛  █▖█        █  ▐▙▄▟▌▐▛ ▐▌▐▙▄▖▘▐▛ ▜▌ █▘  ▐▌ ▐▌ ▘▄▟▌ ▐▌   ▘▄▟▌
-// ▐▌    ▐█▛        █  ▐▛▀▀▘▐▌ ▐▌ ▀▀█▖▐▌ ▐▌ █   ▐▌ ▐▌▗█▀▜▌ ▐▌  ▗█▀▜▌
-// ▐▌     █▌        █  ▝█▄▄▌▐▌ ▐▌▐▄▄▟▌▝█▄█▘ █   ▐▙▄█ ▐▙▄█▌ ▐▙▄ ▐▙▄█▌
-// ▝▘     █         ▀   ▝▀▀ ▝▘ ▝▘ ▀▀▀  ▝▀▘  ▀   ▝▀▀   ▀▀▝▘  ▀▀  ▀▀▝▘
+// ▗▄▄▖           ▗▄▄▄▖                         ▗▄▄▖
+// ▐▛▀▜▖          ▝▀█▀▘                         ▐▛▀▜▌
+// ▐▌ ▐▌▝█ █▌       █   ▟█▙ ▐▙██▖▗▟██▖ ▟█▙  █▟█▌▐▌ ▐▌ ▟██▖▗▟██▖ ▟█▙
+// ▐██▛  █▖█        █  ▐▙▄▟▌▐▛ ▐▌▐▙▄▖▘▐▛ ▜▌ █▘  ▐███  ▘▄▟▌▐▙▄▖▘▐▙▄▟▌
+// ▐▌    ▐█▛        █  ▐▛▀▀▘▐▌ ▐▌ ▀▀█▖▐▌ ▐▌ █   ▐▌ ▐▌▗█▀▜▌ ▀▀█▖▐▛▀▀▘
+// ▐▌     █▌        █  ▝█▄▄▌▐▌ ▐▌▐▄▄▟▌▝█▄█▘ █   ▐▙▄▟▌▐▙▄█▌▐▄▄▟▌▝█▄▄▌
+// ▝▘     █         ▀   ▝▀▀ ▝▘ ▝▘ ▀▀▀  ▝▀▘  ▀   ▝▀▀▀  ▀▀▝▘ ▀▀▀  ▝▀▀
 //       █▌
 // ----------------------------------------------------------------
+
+//
+// A wrapper around TensorBase enabling use as a Python object.
+// We try to match the pytorch tensor API as closely as possible.
+//
 
 // clang-format off
 typedef struct
 {
     PyObject_HEAD
     TensorBase td;
-} TensorData;
+} PyTensorBase;
 // clang-format on
 
-static PyObject *TensorData_get_ndim(TensorData *self, PyObject *Py_UNUSED(ignored))
+// ----------------------------------------------------------------
+// ▗▄▄▖                                 █
+// ▐▛▀▜▖                          ▐▌    ▀
+// ▐▌ ▐▌ █▟█▌ ▟█▙ ▐▙█▙  ▟█▙  █▟█▌▐███  ██   ▟█▙ ▗▟██▖
+// ▐██▛  █▘  ▐▛ ▜▌▐▛ ▜▌▐▙▄▟▌ █▘   ▐▌    █  ▐▙▄▟▌▐▙▄▖▘
+// ▐▌    █   ▐▌ ▐▌▐▌ ▐▌▐▛▀▀▘ █    ▐▌    █  ▐▛▀▀▘ ▀▀█▖
+// ▐▌    █   ▝█▄█▘▐█▄█▘▝█▄▄▌ █    ▐▙▄ ▗▄█▄▖▝█▄▄▌▐▄▄▟▌
+// ▝▘    ▀    ▝▀▘ ▐▌▀▘  ▝▀▀  ▀     ▀▀ ▝▀▀▀▘ ▝▀▀  ▀▀▀
+//                ▐▌
+// ----------------------------------------------------------------
+
+static PyObject *PyTensorBase_get_ndim(PyTensorBase *self, PyObject *Py_UNUSED(ignored))
 {
     return PyLong_FromLong(self->td.ndim);
 }
 
-static PyObject *TensorData_get_shape(TensorData *self, PyObject *Py_UNUSED(ignored))
+static PyObject *PyTensorBase_get_shape(PyTensorBase *self, PyObject *Py_UNUSED(ignored))
 {
     PyObject *shape = PyTuple_New(self->td.ndim);
 
@@ -70,9 +93,9 @@ static PyObject *TensorData_get_shape(TensorData *self, PyObject *Py_UNUSED(igno
     return shape;
 }
 
-static PyGetSetDef TensorData_getset[] = {
-    {"ndim", (getter)TensorData_get_ndim, NULL, "TODO: docs", NULL},
-    {"shape", (getter)TensorData_get_shape, NULL, "TODO: docs", NULL},
+static PyGetSetDef PyTensorBase_getset[] = {
+    {"ndim", (getter)PyTensorBase_get_ndim, NULL, "TODO: docs", NULL},
+    {"shape", (getter)PyTensorBase_get_shape, NULL, "TODO: docs", NULL},
     {NULL} /* Sentinel */
 };
 
@@ -86,12 +109,12 @@ static PyGetSetDef TensorData_getset[] = {
 // ▝▘ ▝▘ ▝▀▀   ▀▀ ▝▘ ▝▘ ▝▀▘  ▝▀▝▘ ▀▀▀
 // ----------------------------------------------------------------
 
-static PyObject *TensorData_numel(TensorData *self, PyObject *Py_UNUSED(ignored))
+static PyObject *PyTensorBase_numel(PyTensorBase *self, PyObject *Py_UNUSED(ignored))
 {
     return PyLong_FromLong(self->td.numel);
 }
 
-static PyObject *TensorData_stride(TensorData *self, PyObject *Py_UNUSED(ignored))
+static PyObject *PyTensorBase_stride(PyTensorBase *self, PyObject *Py_UNUSED(ignored))
 {
     PyObject *stride = PyTuple_New(self->td.ndim);
 
@@ -108,103 +131,75 @@ static PyObject *TensorData_stride(TensorData *self, PyObject *Py_UNUSED(ignored
 }
 
 // TODO: eventually remove this
-static PyObject *TensorData_print(TensorData *self, PyObject *Py_UNUSED(ignored))
+static PyObject *PyTensorBase_print(PyTensorBase *self, PyObject *Py_UNUSED(ignored))
 {
     TensorBase_stringify(&self->td);
     Py_RETURN_NONE;
 }
 
-static PyMethodDef TensorData_methods[] = {
-    {"numel", (PyCFunction)TensorData_numel, METH_NOARGS, "TODO: docs"},
-    {"stride", (PyCFunction)TensorData_stride, METH_NOARGS, "TODO: docs"},
-    {"print", (PyCFunction)TensorData_print, METH_NOARGS, "TODO: docs"},
+static PyMethodDef PyTensorBase_methods[] = {
+    {"numel", (PyCFunction)PyTensorBase_numel, METH_NOARGS, "TODO: docs"},
+    {"stride", (PyCFunction)PyTensorBase_stride, METH_NOARGS, "TODO: docs"},
+    {"print", (PyCFunction)PyTensorBase_print, METH_NOARGS, "TODO: docs"},
     {NULL} /* Sentinel */
 };
 
 // ----------------------------------------------------------------
-// ▗▄ ▗▖          ▗▖
-// ▐█ ▐▌          ▐▌
-// ▐▛▌▐▌▐▌ ▐▌▐█▙█▖▐▙█▙  ▟█▙  █▟█▌
-// ▐▌█▐▌▐▌ ▐▌▐▌█▐▌▐▛ ▜▌▐▙▄▟▌ █▘
-// ▐▌▐▟▌▐▌ ▐▌▐▌█▐▌▐▌ ▐▌▐▛▀▀▘ █
-// ▐▌ █▌▐▙▄█▌▐▌█▐▌▐█▄█▘▝█▄▄▌ █
-// ▝▘ ▀▘ ▀▀▝▘▝▘▀▝▘▝▘▀▘  ▝▀▀  ▀
+// ▗▄ ▗▖          ▗▖                  ▗▄▄▖                               ▗▄▖
+// ▐█ ▐▌          ▐▌                  ▐▛▀▜▖           ▐▌                 ▝▜▌
+// ▐▛▌▐▌▐▌ ▐▌▐█▙█▖▐▙█▙  ▟█▙  █▟█▌     ▐▌ ▐▌ █▟█▌ ▟█▙ ▐███  ▟█▙  ▟██▖ ▟█▙  ▐▌
+// ▐▌█▐▌▐▌ ▐▌▐▌█▐▌▐▛ ▜▌▐▙▄▟▌ █▘       ▐██▛  █▘  ▐▛ ▜▌ ▐▌  ▐▛ ▜▌▐▛  ▘▐▛ ▜▌ ▐▌
+// ▐▌▐▟▌▐▌ ▐▌▐▌█▐▌▐▌ ▐▌▐▛▀▀▘ █        ▐▌    █   ▐▌ ▐▌ ▐▌  ▐▌ ▐▌▐▌   ▐▌ ▐▌ ▐▌
+// ▐▌ █▌▐▙▄█▌▐▌█▐▌▐█▄█▘▝█▄▄▌ █        ▐▌    █   ▝█▄█▘ ▐▙▄ ▝█▄█▘▝█▄▄▌▝█▄█▘ ▐▙▄
+// ▝▘ ▀▘ ▀▀▝▘▝▘▀▝▘▝▘▀▘  ▝▀▀  ▀        ▝▘    ▀    ▝▀▘   ▀▀  ▝▀▘  ▝▀▀  ▝▀▘   ▀▀
 // ----------------------------------------------------------------
 
-// Implementation of Number Protocol
+// These methods are implemented below
+// TODO: move implementations here?
+static PyObject *PyTensorBase_add(PyObject *self, PyObject *other);
 
-static PyObject *TensorData_add(PyObject *self, PyObject *other);
-
-static PyNumberMethods TensorData_as_number = {
-    .nb_add = (binaryfunc)TensorData_add,
-    // .nb_subtract = (binaryfunc)TensorData_as_number_subtract,
-    // .nb_multiply = (binaryfunc)TensorData_as_number_multiply,
-    // .nb_true_divide = (binaryfunc)TensorData_as_number_true_divide,
-    // .nb_floor_divide = (binaryfunc)TensorData_as_number_floor_divide,
-    // .nb_remainder = (binaryfunc)TensorData_as_number_remainder,
-    // .nb_power = (ternaryfunc)TensorData_as_number_power,
-    // .nb_negative = (unaryfunc)TensorData_as_number_negative,
-    // .nb_positive = (unaryfunc)TensorData_as_number_positive,
-    // .nb_absolute = (unaryfunc)TensorData_as_number_absolute,
-    // .nb_invert = (unaryfunc)TensorData_as_number_invert,
-    // .nb_lshift = (binaryfunc)TensorData_as_number_lshift,
-    // .nb_rshift = (binaryfunc)TensorData_as_number_rshift,
-    // .nb_and = (binaryfunc)TensorData_as_number_and,
-    // .nb_xor = (binaryfunc)TensorData_as_number_xor,
-    // .nb_or = (binaryfunc)TensorData_as_number_or,
-    // .nb_int = (unaryfunc)TensorData_as_number_int,
-    // .nb_float = (unaryfunc)TensorData_as_number_float,
-    // .nb_inplace_add = (binaryfunc)TensorData_as_number_inplace_add,
-    // .nb_inplace_subtract = (binaryfunc)TensorData_as_number_inplace_subtract,
-    // .nb_inplace_multiply = (binaryfunc)TensorData_as_number_inplace_multiply,
-    // .nb_inplace_true_divide = (binaryfunc)TensorData_as_number_inplace_true_divide,
-    // .nb_inplace_floor_divide = (binaryfunc)TensorData_as_number_inplace_floor_divide,
-    // .nb_inplace_remainder = (binaryfunc)TensorData_as_number_inplace_remainder,
-    // .nb_inplace_power = (ternaryfunc)TensorData_as_number_inplace_power,
-    // .nb_inplace_lshift = (binaryfunc)TensorData_as_number_inplace_lshift,
+static PyNumberMethods PyTensorBase_as_number = {
+    .nb_add = (binaryfunc)PyTensorBase_add,
+    // .nb_subtract = (binaryfunc)PyTensorBase_as_number_subtract,
+    // .nb_multiply = (binaryfunc)PyTensorBase_as_number_multiply,
+    // .nb_true_divide = (binaryfunc)PyTensorBase_as_number_true_divide,
+    // .nb_floor_divide = (binaryfunc)PyTensorBase_as_number_floor_divide,
+    // .nb_remainder = (binaryfunc)PyTensorBase_as_number_remainder,
+    // .nb_power = (ternaryfunc)PyTensorBase_as_number_power,
+    // .nb_negative = (unaryfunc)PyTensorBase_as_number_negative,
+    // .nb_positive = (unaryfunc)PyTensorBase_as_number_positive,
+    // .nb_absolute = (unaryfunc)PyTensorBase_as_number_absolute,
+    // .nb_invert = (unaryfunc)PyTensorBase_as_number_invert,
+    // .nb_lshift = (binaryfunc)PyTensorBase_as_number_lshift,
+    // .nb_rshift = (binaryfunc)PyTensorBase_as_number_rshift,
+    // .nb_and = (binaryfunc)PyTensorBase_as_number_and,
+    // .nb_xor = (binaryfunc)PyTensorBase_as_number_xor,
+    // .nb_or = (binaryfunc)PyTensorBase_as_number_or,
+    // .nb_int = (unaryfunc)PyTensorBase_as_number_int,
+    // .nb_float = (unaryfunc)PyTensorBase_as_number_float,
+    // .nb_inplace_add = (binaryfunc)PyTensorBase_as_number_inplace_add,
+    // .nb_inplace_subtract = (binaryfunc)PyTensorBase_as_number_inplace_subtract,
+    // .nb_inplace_multiply = (binaryfunc)PyTensorBase_as_number_inplace_multiply,
+    // .nb_inplace_true_divide = (binaryfunc)PyTensorBase_as_number_inplace_true_divide,
+    // .nb_inplace_floor_divide = (binaryfunc)PyTensorBase_as_number_inplace_floor_divide,
+    // .nb_inplace_remainder = (binaryfunc)PyTensorBase_as_number_inplace_remainder,
+    // .nb_inplace_power = (ternaryfunc)PyTensorBase_as_number_inplace_power,
+    // .nb_inplace_lshift = (binaryfunc)PyTensorBase_as_number_inplace_lshift,
     // .nb_inplace_rshift = (binaryfunc
 };
 
-; // ----------------------------------------------------------------
-// ▗▄▄▄▖                         ▗▄▄                      ▗▄▄▄▖
-// ▝▀█▀▘                         ▐▛▀█       ▐▌            ▝▀█▀▘
-//   █   ▟█▙ ▐▙██▖▗▟██▖ ▟█▙  █▟█▌▐▌ ▐▌ ▟██▖▐███  ▟██▖       █  ▝█ █▌▐▙█▙  ▟█▙
-//   █  ▐▙▄▟▌▐▛ ▐▌▐▙▄▖▘▐▛ ▜▌ █▘  ▐▌ ▐▌ ▘▄▟▌ ▐▌   ▘▄▟▌       █   █▖█ ▐▛ ▜▌▐▙▄▟▌
-//   █  ▐▛▀▀▘▐▌ ▐▌ ▀▀█▖▐▌ ▐▌ █   ▐▌ ▐▌▗█▀▜▌ ▐▌  ▗█▀▜▌       █   ▐█▛ ▐▌ ▐▌▐▛▀▀▘
-//   █  ▝█▄▄▌▐▌ ▐▌▐▄▄▟▌▝█▄█▘ █   ▐▙▄█ ▐▙▄█▌ ▐▙▄ ▐▙▄█▌       █    █▌ ▐█▄█▘▝█▄▄▌
-//   ▀   ▝▀▀ ▝▘ ▝▘ ▀▀▀  ▝▀▘  ▀   ▝▀▀   ▀▀▝▘  ▀▀  ▀▀▝▘       ▀    █  ▐▌▀▘  ▝▀▀
-//                                                              █▌  ▐▌
+// ----------------------------------------------------------------
+// ▗▄▄▖            ▗▄▖ ▗▖     █                      ▗▄▄         ▄▄
+// ▐▛▀▜▖           █▀█ ▐▌     ▀             ▐▌       ▐▛▀█       ▐▛▀
+// ▐▌ ▐▌▝█ █▌     ▐▌ ▐▌▐▙█▙  ██   ▟█▙  ▟██▖▐███      ▐▌ ▐▌ ▟█▙ ▐███
+// ▐██▛  █▖█      ▐▌ ▐▌▐▛ ▜▌  █  ▐▙▄▟▌▐▛  ▘ ▐▌       ▐▌ ▐▌▐▙▄▟▌ ▐▌
+// ▐▌    ▐█▛      ▐▌ ▐▌▐▌ ▐▌  █  ▐▛▀▀▘▐▌    ▐▌       ▐▌ ▐▌▐▛▀▀▘ ▐▌
+// ▐▌     █▌       █▄█ ▐█▄█▘  █  ▝█▄▄▌▝█▄▄▌ ▐▙▄      ▐▙▄█ ▝█▄▄▌ ▐▌
+// ▝▘     █        ▝▀▘ ▝▘▀▘   █   ▝▀▀  ▝▀▀   ▀▀      ▝▀▀   ▝▀▀  ▝▘
+//       █▌                 ▐█▛
 // ----------------------------------------------------------------
 
-static int TensorData_init(TensorData *self, PyObject *args, PyObject *kwds);
-static void TensorData_dealloc(TensorData *self);
-
-// clang-format off
-// NOTE: disabling formatter due to PyVarObject_HEAD_INIT macro
-static PyTypeObject TensorDataType = {
-    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "match.TensorData",
-    .tp_doc = PyDoc_STR("TODO: docs"),
-    // .tp_repr = TensorData_str,
-    // .tp_str = TensorData_str,
-    .tp_basicsize = sizeof(TensorData),
-    .tp_itemsize = 0,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_new = PyType_GenericNew,
-    .tp_init = (initproc)TensorData_init,
-    .tp_dealloc = (destructor)TensorData_dealloc,
-    // .tp_members = TensorData_members,
-    .tp_methods = TensorData_methods,
-    .tp_getset = TensorData_getset,
-    // TODO: .tp_getattr/tp_setattr?
-    // TODO: .tp_getattro/tp_setattro?
-    // TODO: .tp_richcompare?
-    // TODO: .tp_iter/tp_iternext?
-    .tp_as_number = &TensorData_as_number,
-};
-// clang-format on
-
-static int TensorData_init(TensorData *self, PyObject *args, PyObject *kwds)
+static int PyTensorBase_init(PyTensorBase *self, PyObject *args, PyObject *kwds)
 {
     // Parse args as tuple of dimensions (or tuple of tuple of dimensions)
     Py_ssize_t tuple_len = PyTuple_Size(args);
@@ -244,7 +239,7 @@ static int TensorData_init(TensorData *self, PyObject *args, PyObject *kwds)
     return 0;
 }
 
-static void TensorData_dealloc(TensorData *self)
+static void PyTensorBase_dealloc(PyTensorBase *self)
 {
     TensorBase_dealloc(&self->td);
     Py_TYPE(self)->tp_free((PyObject *)self);
@@ -252,26 +247,51 @@ static void TensorData_dealloc(TensorData *self)
 
 // TODO
 // static PyObject *
-// TensorData_str(TensorData *obj)
+// PyTensorBase_str(PyTensorBase *obj)
 // {
 //     // TODO: call TensorBase_stringify (how to handle allocation?)
 //     // return PyUnicode_FromFormat("Stringified_newdatatype{{size:%d}}",
 //     //                             obj->obj_UnderlyingDatatypePtr->size);
 // }
 
+// clang-format off
+// NOTE: disabling formatter due to PyVarObject_HEAD_INIT macro
+static PyTypeObject PyTensorBaseType = {
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "match.TensorBase",
+    .tp_doc = PyDoc_STR("TODO: docs"),
+    // .tp_repr = PyTensorBase_str,
+    // .tp_str = PyTensorBase_str,
+    .tp_basicsize = sizeof(PyTensorBase),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc)PyTensorBase_init,
+    .tp_dealloc = (destructor)PyTensorBase_dealloc,
+    // .tp_members = PyTensorBase_members,
+    .tp_methods = PyTensorBase_methods,
+    .tp_getset = PyTensorBase_getset,
+    // TODO: .tp_getattr/tp_setattr?
+    // TODO: .tp_getattro/tp_setattro?
+    // TODO: .tp_richcompare?
+    // TODO: .tp_iter/tp_iternext?
+    .tp_as_number = &PyTensorBase_as_number,
+};
+// clang-format on
+
 // ----------------------------------------------------------------
-// ▗▄▄▄▖                              ▗▖ ▗▖       █  ▗▄▖
-// ▝▀█▀▘                              ▐▌ ▐▌ ▐▌    ▀  ▝▜▌
-//   █   ▟█▙ ▐▙██▖▗▟██▖ ▟█▙  █▟█▌     ▐▌ ▐▌▐███  ██   ▐▌  ▗▟██▖
-//   █  ▐▙▄▟▌▐▛ ▐▌▐▙▄▖▘▐▛ ▜▌ █▘       ▐▌ ▐▌ ▐▌    █   ▐▌  ▐▙▄▖▘
-//   █  ▐▛▀▀▘▐▌ ▐▌ ▀▀█▖▐▌ ▐▌ █        ▐▌ ▐▌ ▐▌    █   ▐▌   ▀▀█▖
-//   █  ▝█▄▄▌▐▌ ▐▌▐▄▄▟▌▝█▄█▘ █        ▝█▄█▘ ▐▙▄ ▗▄█▄▖ ▐▙▄ ▐▄▄▟▌
-//   ▀   ▝▀▀ ▝▘ ▝▘ ▀▀▀  ▝▀▘  ▀         ▝▀▘   ▀▀ ▝▀▀▀▘  ▀▀  ▀▀▀
+// ▗▖ ▗▖       █  ▗▄▖    █         █
+// ▐▌ ▐▌ ▐▌    ▀  ▝▜▌    ▀   ▐▌    ▀
+// ▐▌ ▐▌▐███  ██   ▐▌   ██  ▐███  ██   ▟█▙ ▗▟██▖
+// ▐▌ ▐▌ ▐▌    █   ▐▌    █   ▐▌    █  ▐▙▄▟▌▐▙▄▖▘
+// ▐▌ ▐▌ ▐▌    █   ▐▌    █   ▐▌    █  ▐▛▀▀▘ ▀▀█▖
+// ▝█▄█▘ ▐▙▄ ▗▄█▄▖ ▐▙▄ ▗▄█▄▖ ▐▙▄ ▗▄█▄▖▝█▄▄▌▐▄▄▟▌
+//  ▝▀▘   ▀▀ ▝▀▀▀▘  ▀▀ ▝▀▀▀▘  ▀▀ ▝▀▀▀▘ ▝▀▀  ▀▀▀
 // ----------------------------------------------------------------
 
-static long PyTensorData_Check(PyObject *obj)
+static long PyTensorBase_Check(PyObject *obj)
 {
-    return PyObject_IsInstance(obj, (PyObject *)&TensorDataType);
+    return PyObject_IsInstance(obj, (PyObject *)&PyTensorBaseType);
 }
 
 static long PyFloatOrLong_Check(PyObject *obj)
@@ -281,7 +301,7 @@ static long PyFloatOrLong_Check(PyObject *obj)
 
 static long can_math(PyObject *obj)
 {
-    return PyFloatOrLong_Check(obj) || PyTensorData_Check(obj);
+    return PyFloatOrLong_Check(obj) || PyTensorBase_Check(obj);
 }
 
 static scalar PyFloatOrLong_asDouble(PyObject *obj)
@@ -293,12 +313,12 @@ static scalar PyFloatOrLong_asDouble(PyObject *obj)
     return PyFloat_AsDouble(obj);
 }
 
-static TensorData *TensorData_create(ShapeArray shape)
+static PyTensorBase *PyTensorBase_create(ShapeArray shape)
 {
-    TensorData *result = (TensorData *)PyObject_New(TensorData, &TensorDataType);
+    PyTensorBase *result = (PyTensorBase *)PyObject_New(PyTensorBase, &PyTensorBaseType);
     if (result == NULL)
     {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to create new TensorData object.");
+        PyErr_SetString(PyExc_RuntimeError, "Failed to create new PyTensorBase object.");
         return NULL;
     }
 
@@ -311,12 +331,12 @@ static TensorData *TensorData_create(ShapeArray shape)
     return result;
 }
 
-// static TensorData *TensorData_shallow_broadcast(TensorData *t, ShapeArray shape)
+// static PyTensorBase *PyTensorBase_shallow_broadcast(PyTensorBase *t, ShapeArray shape)
 // {
-//     TensorData *result = (TensorData *)PyObject_New(TensorData, &TensorDataType);
+//     PyTensorBase *result = (PyTensorBase *)PyObject_New(PyTensorBase, &PyTensorBaseType);
 //     if (result == NULL)
 //     {
-//         PyErr_SetString(PyExc_RuntimeError, "Failed to create new TensorData object.");
+//         PyErr_SetString(PyExc_RuntimeError, "Failed to create new PyTensorBase object.");
 //         return NULL;
 //     }
 
@@ -337,12 +357,12 @@ static TensorData *TensorData_create(ShapeArray shape)
 //   ▀   ▝▀▀ ▝▘ ▝▘ ▀▀▀  ▝▀▘  ▀        ▝▘ ▝▘ ▀▀▝▘  ▀▀ ▝▘ ▝▘
 // ----------------------------------------------------------------
 
-static PyObject *TensorData_add_tensor_scalar(TensorData *t, scalar s)
+static PyObject *PyTensorBase_add_tensor_scalar(PyTensorBase *t, scalar s)
 {
-    TensorData *result = TensorData_create(t->td.shape);
+    PyTensorBase *result = PyTensorBase_create(t->td.shape);
     if (!result)
     {
-        // NOTE: error string set in TensorData_create
+        // NOTE: error string set in PyTensorBase_create
         return NULL;
     }
 
@@ -350,12 +370,12 @@ static PyObject *TensorData_add_tensor_scalar(TensorData *t, scalar s)
     return (PyObject *)result;
 }
 
-static PyObject *TensorData_add_tensor_tensor(TensorData *a, TensorData *b)
+static PyObject *PyTensorBase_add_tensor_tensor(PyTensorBase *a, PyTensorBase *b)
 {
-    TensorData *result = TensorData_create(a->td.shape);
+    PyTensorBase *result = PyTensorBase_create(a->td.shape);
     if (!result)
     {
-        // NOTE: error string set in TensorData_create
+        // NOTE: error string set in PyTensorBase_create
         return NULL;
     }
 
@@ -372,9 +392,9 @@ static PyObject *TensorData_add_tensor_tensor(TensorData *a, TensorData *b)
     return (PyObject *)result;
 }
 
-static PyObject *TensorData_add(PyObject *a, PyObject *b)
+static PyObject *PyTensorBase_add(PyObject *a, PyObject *b)
 {
-    // Valid types: TensorData (with broadcastable dimensions), integers, floats
+    // Valid types: PyTensorBase (with broadcastable dimensions), integers, floats
     // TODO: just get types and compare?
 
     if (!(can_math(a) && can_math(b)))
@@ -383,20 +403,20 @@ static PyObject *TensorData_add(PyObject *a, PyObject *b)
         return NULL;
     }
 
-    // TensorData + (Long | Float)
-    if (PyTensorData_Check(a) && PyFloatOrLong_Check(b))
+    // PyTensorBase + (Long | Float)
+    if (PyTensorBase_Check(a) && PyFloatOrLong_Check(b))
     {
-        return TensorData_add_tensor_scalar((TensorData *)a, PyFloatOrLong_asDouble(b));
+        return PyTensorBase_add_tensor_scalar((PyTensorBase *)a, PyFloatOrLong_asDouble(b));
     }
-    // (Long | Float) + TensorData
-    else if (PyFloatOrLong_Check(a) && PyTensorData_Check(b))
+    // (Long | Float) + PyTensorBase
+    else if (PyFloatOrLong_Check(a) && PyTensorBase_Check(b))
     {
-        return TensorData_add_tensor_scalar((TensorData *)b, PyFloatOrLong_asDouble(a));
+        return PyTensorBase_add_tensor_scalar((PyTensorBase *)b, PyFloatOrLong_asDouble(a));
     }
-    // TensorData + TensorData
-    else if (PyTensorData_Check(a) && PyTensorData_Check(b))
+    // PyTensorBase + PyTensorBase
+    else if (PyTensorBase_Check(a) && PyTensorBase_Check(b))
     {
-        return TensorData_add_tensor_tensor((TensorData *)a, (TensorData *)b);
+        return PyTensorBase_add_tensor_tensor((PyTensorBase *)a, (PyTensorBase *)b);
     }
     // Else invalid
     else
@@ -416,10 +436,10 @@ static PyObject *TensorData_add(PyObject *a, PyObject *b)
 // ▝▘    ▀▀▝▘▝▘ ▝▘ ▝▀▀   ▀▀ ▝▀▀▀▘ ▝▀▘ ▝▘ ▝▘ ▀▀▀
 // ----------------------------------------------------------------
 
-static PyObject *TensorData_ones(TensorData *self, PyObject *args)
+static PyObject *PyTensorBase_ones(PyTensorBase *self, PyObject *args)
 {
     // TODO: should probably use create
-    if (!TensorData_init(self, args, NULL))
+    if (!PyTensorBase_init(self, args, NULL))
     {
         return NULL;
     }
@@ -432,8 +452,8 @@ static PyObject *TensorData_ones(TensorData *self, PyObject *args)
     return self;
 }
 
-static PyMethodDef TensorData_functions[] = {
-    {"ones", (PyCFunction)TensorData_ones, METH_NOARGS, "TODO: docs"},
+static PyMethodDef PyTensorBase_functions[] = {
+    {"ones", (PyCFunction)PyTensorBase_ones, METH_NOARGS, "TODO: docs"},
     {NULL} /* Sentinel */
 };
 
@@ -447,30 +467,30 @@ static PyMethodDef TensorData_functions[] = {
 // ▝▘ ▝▘ ▝▀▘  ▝▀▝▘ ▀▀▝▘  ▀▀  ▝▀▀
 // ----------------------------------------------------------------
 
-static PyModuleDef tensordata = {
+static PyModuleDef PyTensorBase = {
     .m_base = PyModuleDef_HEAD_INIT,
     .m_name = "match",
     .m_doc = "TODO: docs",
     .m_size = -1,
-    .m_methods = TensorData_functions,
+    .m_methods = PyTensorBase_functions,
 };
 
 PyMODINIT_FUNC
-PyInit_tensordata(void)
+PyInit_PyTensorBase(void)
 {
     PyObject *m;
 
-    if (PyType_Ready(&TensorDataType) < 0)
+    if (PyType_Ready(&PyTensorBaseType) < 0)
         return NULL;
 
-    m = PyModule_Create(&tensordata);
+    m = PyModule_Create(&PyTensorBase);
     if (m == NULL)
         return NULL;
 
-    Py_INCREF(&TensorDataType);
-    if (PyModule_AddObject(m, "TensorData", (PyObject *)&TensorDataType) < 0)
+    Py_INCREF(&PyTensorBaseType);
+    if (PyModule_AddObject(m, "PyTensorBase", (PyObject *)&PyTensorBaseType) < 0)
     {
-        Py_DECREF(&TensorDataType);
+        Py_DECREF(&PyTensorBaseType);
         Py_DECREF(m);
         return NULL;
     }
