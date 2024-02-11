@@ -5,6 +5,7 @@
   "cSpell.words": [
     "basicsize",
     "binaryfunc",
+    "binop",
     "broadcastable",
     "cython",
     "DECREF",
@@ -24,7 +25,8 @@
     "pypy",
     "repr",
     "tensordata",
-    "TPFLAGS"
+    "TPFLAGS",
+    "unaryfunc"
   ],
   "C_Cpp.errorSquiggles": "enabled"
 }
