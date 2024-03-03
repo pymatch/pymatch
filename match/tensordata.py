@@ -1,6 +1,7 @@
 from __future__ import annotations
 import itertools
-from math import exp, ceil, prod
+import math
+from math import ceil, prod
 from operator import add, ge, gt, le, lt, mul, pow
 from random import gauss
 from copy import deepcopy
@@ -329,28 +330,28 @@ class TensorData(object):
         if not output_shape:
             self.__out_of_bounds_coords(coords)
             if isinstance(value, TensorData):
-                self._data[
-                    self.__multi_to_single_rank_translation(coords)
-                ]._item = value.item()
+                self._data[self.__multi_to_single_rank_translation(coords)]._item = (
+                    value.item()
+                )
             elif isinstance(value, (int, float)):
-                self._data[
-                    self.__multi_to_single_rank_translation(coords)
-                ]._item = self.dtype(value)
+                self._data[self.__multi_to_single_rank_translation(coords)]._item = (
+                    self.dtype(value)
+                )
             else:
                 raise TypeError("invalid type to set value in tensor data")
         else:
             if isinstance(value, (int, float)):
                 for i, index in enumerate(itertools.product(*possible_indices)):
                     self.__out_of_bounds_coords(index)
-                    self._data[
-                        self.__multi_to_single_rank_translation(index)
-                    ]._item = self.dtype(value)
+                    self._data[self.__multi_to_single_rank_translation(index)]._item = (
+                        self.dtype(value)
+                    )
             elif isinstance(value, TensorData):
                 for i, index in enumerate(itertools.product(*possible_indices)):
                     self.__out_of_bounds_coords(index)
-                    self._data[
-                        self.__multi_to_single_rank_translation(index)
-                    ]._item = value._data[i]._item
+                    self._data[self.__multi_to_single_rank_translation(index)]._item = (
+                        value._data[i]._item
+                    )
 
     # TODO(SRM47) Update the repr to make it look like PyTorch
     def __repr__(self):
@@ -442,9 +443,7 @@ class TensorData(object):
     def __all_coordinates(self):
         return all_coordinates(self.shape)
 
-    def sum_along_axes(
-        self, axes: tuple | int = 0, keepdims: bool = False
-    ) -> TensorData:
+    def sum(self, dims: tuple | int = None, keepdims: bool = False) -> TensorData:
         """Return a new TensorData object summed along the axis
          if coord is (2,3) and sum alon axis=1, then we increment the value at (2,0) in the new tensor by the
         value at (2,3) in the original tensor. initialize new tensor to be all zeros with the new shape.
@@ -454,41 +453,49 @@ class TensorData(object):
 
         initialize new tensor with new shape (depending on keepdims) to all 0's
         for (x1, x2, ...) in orig.all_coordinate()
-        new_coordinate = [0 if dim in axes else val for dim, val in enumerate((x1, x2, ...))]
+        new_coordinate = [0 if dim in dims else val for dim, val in enumerate((x1, x2, ...))]
         new_tensor[new_coordinate] += orig[(x1, x2, ...)]
 
         return new_tensor
         """
-        if isinstance(axes, int):
-            axes = [axes]
+        if isinstance(dims, int):
+            dims = (dims,)
         if self.use_numpy:
-            res = self._numpy_data.sum(axis=axes, keepdims=keepdims)
+            res = self._numpy_data.sum(axis=dims, keepdims=keepdims)
             return TensorData(*res.shape, use_numpy=True, numpy_data=res)
 
-        if any(ax < 0 or ax >= len(self.shape) for ax in axes):
-            raise ValueError(f"Axes should be in bounds 0 and {len(self.shape)}-1")
+        if not dims:
+            # Handle case where dims is None. If None, all dimensions are reduced into a singleton tensor
+            return TensorData(value=sum(td._item for td in self._data))
+            # Case where dims is an int or tuple
+        if any(ax < 0 or ax >= len(self.shape) for ax in dims):
+            raise ValueError(f"dims should be in bounds 0 and {len(self.shape)}-1")
 
         new_shape = tuple(
-            1 if dim in axes else val for dim, val in enumerate(self.shape)
+            1 if dim in dims else val for dim, val in enumerate(self.shape)
         )
         new_tensor = TensorData(*new_shape, value=0)  # Must initialize to 0
         # for every coordinate in the original tensor
         for orig_index, orig_coord in enumerate(self.__all_coordinates()):
             new_coord = tuple(
-                0 if dim in axes else val for dim, val in enumerate(orig_coord)
+                0 if dim in dims else val for dim, val in enumerate(orig_coord)
             )
             new_coord_index = new_tensor.__multi_to_single_rank_translation(new_coord)
             new_tensor._data[new_coord_index]._item += self._data[orig_index]._item
 
         if not keepdims:
-            # remove the dimensions that were summed out (changed to 1's), i.e., the dimensions in axes
+            # remove the dimensions that were summed out (changed to 1's), i.e., the dimensions in dims
             new_shape = []
             for dim, val in enumerate(self.shape):
-                if dim not in axes:
+                if dim not in dims:
                     new_shape.append(val)
-            new_tensor.reshape(*new_shape)
+            new_tensor.reshape(tuple(new_shape))
 
         return new_tensor
+
+    def mean(self, dims: tuple | int = None, keepdims: bool = None) -> TensorData:
+        """Compute the mean of all values in the tensor."""
+        return self.sum(dims, keepdims) / self.numel
 
     def unbroadcast(self, *shape: int) -> TensorData:
         """Return a new TensorData unbroadcast from current shape to desired shape.
@@ -502,14 +509,14 @@ class TensorData(object):
             dim_diff = abs(len(self.shape) - len(shape))
             if dim_diff:  # != 0
                 summation_dims = tuple(range(dim_diff))
-                correct_adjoint = self.sum_along_axes(axes=summation_dims)
+                correct_adjoint = self.sum(dims=summation_dims)
 
                 originally_ones = tuple(
                     [axis for axis, size in enumerate(shape) if size == 1]
                 )
                 if len(originally_ones) != 0:
-                    correct_adjoint = correct_adjoint.sum_along_axes(
-                        correct_adjoint, axes=originally_ones, keepdims=True
+                    correct_adjoint = correct_adjoint.sum(
+                        dims=originally_ones, keepdims=True
                     )
 
         return correct_adjoint
@@ -521,17 +528,6 @@ class TensorData(object):
     def zeros_(self) -> None:
         """Modify all values in the tensor to be 0.0."""
         self.__set(0.0)
-
-    def sum(self) -> float:
-        """Compute the sum of all values in the tensor."""
-        if self.use_numpy:
-            return self._numpy_data.sum()
-
-        return sum(td._item for td in self._data)
-
-    def mean(self) -> float:
-        """Compute the mean of all values in the tensor."""
-        return self.sum() / self.numel()
 
     def numel(self) -> int:
         return self._numpy_data.size() if self.use_numpy else len(self._data)
@@ -630,7 +626,7 @@ class TensorData(object):
     def __binary_op(
         self, op: Callable, rhs: Union[float, int, TensorData]
     ) -> TensorData:
-        """Internal method to perform a binary operation on the TensorData object.
+        """Internal method to perform an element-wise binary operation on the TensorData object.
 
         This method will automatically broadcast inputs when necessary.
         """
@@ -765,6 +761,24 @@ class TensorData(object):
                     numpy_data=self._numpy_data > rhs,
                 )
         return self.__binary_op(gt, rhs)
+
+    def exp(self) -> TensorData:
+        if self.use_numpy:
+            return TensorData(
+                *self._numpy_data.shape,
+                dtype=self.dtype,
+                use_numpy=True,
+                numpy_data=np.exp(self._numpy_data),
+            )
+        else:
+            # Handle case where self is a singleton
+            if not self._data:
+                return TensorData(value=math.exp(self._item))
+            # Handle case where self is a non-singleton tensordata
+            new_tensor = TensorData(*self.shape)
+            for i, elem in enumerate(new_tensor._data):
+                elem._item = math.exp(self._data[i]._item)
+            return new_tensor
 
     @property
     def vals(self) -> list:
