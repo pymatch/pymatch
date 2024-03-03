@@ -13,9 +13,7 @@ import numpy as np
 
 
 class Tensor(object):
-    def __init__(
-        self, data: TensorData, children: tuple = ()
-    ) -> None:
+    def __init__(self, data: TensorData, children: tuple = ()) -> None:
         """A Tensor object that tracks computations for computing gradients."""
         # super().__init__()
         self.shape: tuple = data.shape
@@ -97,31 +95,41 @@ class Tensor(object):
     def numel(self) -> int:
         return len(self.data._data)
 
-    def sum(self) -> Tensor:
-        """Return the sum of all values across both dimensions."""
-        result = Tensor(TensorData(value=self.data.sum(), use_numpy=self.use_numpy), children=(self,))
+    # TODO: Needs to take a dimension parameter
+    def sum(self, dim: int = None, keepdims: bool = False) -> Tensor:
+        """Return the sum of all values across dimensions"""
+        result = Tensor(self.data.sum(dim, keepdims), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of summation. Shape: {self.shape}")
-            self.grad += TensorData(*self.shape, value=result.data.item(), use_numpy=self.use_numpy)
+            self.grad += 1 * TensorData(
+                *self.shape, value=result.data.item(), use_numpy=self.use_numpy
+            )
 
         result._gradient = _gradient
         return result
 
     def mean(self) -> Tensor:
         """Return the mean of all values across both dimensions."""
-        result = Tensor(TensorData(value=self.data.mean(), use_numpy=self.use_numpy), children=(self,))
+        result = Tensor(
+            TensorData(value=self.data.mean(), use_numpy=self.use_numpy),
+            children=(self,),
+        )
 
         def _gradient() -> None:
             info(f"Gradient of mean. Shape: {self.shape}")
-            self.grad += TensorData(*self.shape, value=result.data.item() / self.numel, use_numpy=self.use_numpy)
+            self.grad += TensorData(
+                *self.shape,
+                value=result.data.item() / self.numel,
+                use_numpy=self.use_numpy,
+            )
 
         result._gradient = _gradient
         return result
 
     def relu(self) -> Tensor:
         """Element-wise rectified linear unit (ReLU)."""
-        result = Tensor(self.data.relu(), children=(self,), use_numpy = self.data.use_numpy)
+        result = Tensor(self.data.relu(), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of ReLU. Shape: {self.shape}")
@@ -188,6 +196,8 @@ class Tensor(object):
             info(f"Gradient of exponentiation. Shape: {self.shape}")
             g = rhs * self.data ** (rhs - 1) * result.grad
             self.grad += g.unbroadcast(*self.shape)
+            # g is the same shape as self so we don't need to unbroadcast?? Check this.
+            # self.grad += rhs * self.data ** (rhs - 1) * result.grad
 
         result._gradient = _gradient
         return result
@@ -269,6 +279,16 @@ class Tensor(object):
             info(f"Gradient of permute. Shape: {self.shape}")
             # Permuting the result with the same parameter (reverse)
             self.grad += result.grad.permute(*dims)
+
+        result._gradient = _gradient
+        return result
+
+    def exp(self) -> Tensor:
+        """Performs element-wise exp"""
+        result: Tensor = Tensor(self.data.exp(), children=(self,))
+
+        def _gradient() -> None:
+            self.grad += self.data.exp() * result.grad
 
         result._gradient = _gradient
         return result
