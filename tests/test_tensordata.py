@@ -28,6 +28,35 @@ def same_references(match_tensor1: TensorData, match_tensor2: TensorData):
 
 
 class TestTensorDataTest(unittest.TestCase):
+    def test_mean_nodim(self):
+        torch_tensor = torch.arange(24).reshape(2, 4, 3).float()
+
+        match_tensor = TensorData(2, 4, 3)
+        match_tensor._data = [TensorData(value=i) for i in range(24)]
+
+        self.assertEqual(match_tensor.mean().item(), torch_tensor.mean().item())
+
+    def test_mean_keepdim(self):
+        torch_tensor = torch.arange(24).reshape(2, 4, 3).float()
+
+        match_tensor = TensorData(2, 4, 3)
+        match_tensor._data = [TensorData(value=i) for i in range(24)]
+
+        self.assertTrue(
+            almost_equal(
+                match_tensor.mean((1, 2), keepdims=True),
+                torch_tensor.mean((1, 2), keepdim=True),
+            )
+        )
+
+    def test_mean(self):
+        torch_tensor = torch.arange(24).reshape(2, 4, 3).float()
+
+        match_tensor = TensorData(2, 4, 3)
+        match_tensor._data = [TensorData(value=i) for i in range(24)]
+
+        self.assertTrue(almost_equal(match_tensor.mean((0,)), torch_tensor.mean((0,))))
+
     def test_sum_nodim(self):
         torch_tensor = torch.arange(24).reshape(2, 4, 3)
 

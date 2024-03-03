@@ -495,7 +495,15 @@ class TensorData(object):
 
     def mean(self, dims: tuple | int = None, keepdims: bool = None) -> TensorData:
         """Compute the mean of all values in the tensor."""
-        return self.sum(dims, keepdims) / self.numel
+        if self.use_numpy:
+            res_mean = self._numpy_data.mean(dims, keepdims)
+            return TensorData(*res_mean.shape, use_numpy=True, numpy_data=res_mean)
+        res_sum = self.sum(dims, keepdims)
+        if not dims:
+            return res_sum / self.numel()
+        num_elements_per_mean = prod(self.shape[dim] for dim in dims)
+        quotient = TensorData(*res_sum.shape, value=num_elements_per_mean)
+        return res_sum / quotient
 
     def unbroadcast(self, *shape: int) -> TensorData:
         """Return a new TensorData unbroadcast from current shape to desired shape.
@@ -713,19 +721,11 @@ class TensorData(object):
 
         return self.__binary_op(mul, rhs)
 
-    def __rmul__(self, lhs: Union[float, int, TensorData]) -> TensorData:
+    def __rmul__(self, lhs: float | int | TensorData) -> TensorData:
         """Element-wise multiplication is commutative: lhs * self."""
         return self * lhs
 
-    def __truediv__(self, rhs: Union[float, int, TensorData]) -> TensorData:
-        """Element-wise division: self / rhs."""
-        return self * rhs**-1
-
-    def __rtruediv__(self, lhs: Union[float, int, TensorData]) -> TensorData:
-        """Self as RHS in element-wise division: lhs / self."""
-        return lhs * self**-1
-
-    def __pow__(self, rhs: Union[float, int]) -> TensorData:
+    def __pow__(self, rhs: float | int) -> TensorData:
         """Element-wise exponentiation: self ** rhs."""
         if self.use_numpy:
             return TensorData(
@@ -736,11 +736,19 @@ class TensorData(object):
             )
         return self.__binary_op(pow, rhs)
 
+    def __truediv__(self, rhs: float | int | TensorData) -> TensorData:
+        """Element-wise division: self / rhs."""
+        return self * rhs**-1
+
+    def __rtruediv__(self, lhs: float | int | TensorData) -> TensorData:
+        """Self as RHS in element-wise division: lhs / self."""
+        return lhs * self**-1
+
     def __neg__(self) -> TensorData:
         """Element-wise unary negation: -self."""
         return self * -1
 
-    def __gt__(self, rhs: Union[float, int, TensorData]) -> TensorData:
+    def __gt__(self, rhs: float | int | TensorData) -> TensorData:
         """Element-wise comparison: self > rhs."""
         if self.use_numpy:
             if isinstance(rhs, TensorData):
