@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from math import sqrt, prod
+from typing import Optional
 
 import numpy as np
 
 import match
 from match import Tensor, TensorData
 from match.util import get_kernel_position_slices_conv2d
+
+from copy import deepcopy
 
 
 class Module:
@@ -405,6 +408,7 @@ class MultiheadAttention(Module):
         return attn
 
 
+# TODO: Implement variance in Tensor class
 class LayerNorm(Module):
     """The mean and standard-deviation are calculated over the last D dimensions, where
     D is the dimension of normalized_shape. For example, if normalized_shape is (3, 5)
@@ -460,6 +464,7 @@ class LayerNorm(Module):
         return normalized_tensor
 
 
+# TODO: Fix division shape
 class Softmax(Module):
     """Adapted from https://pytorch.org/docs/stable/generated/torch.nn.Softmax.html"""
 
@@ -475,6 +480,7 @@ class Softmax(Module):
         return tensor_exp / tensor_exp_sum
 
 
+# TODO: Implement Embedding
 class Embedding(Module):
     # https://pytorch.org/docs/stable/generated/torch.nn.Embedding.html
     def __init__(self, num_embeddings, embedding_dim):
@@ -484,21 +490,47 @@ class Embedding(Module):
     def forward(self, x: Tensor): ...
 
 
-class DecoderLayer(Module):
-    def __init__(self, d_model: int, ff_dim: int):
+class TransformerDecoderLayer(Module):
+    def __init__(
+        self,
+        d_model: int,
+        nhead: int,
+        dim_feedforward: int = 2048,
+        dropout: float = 0.1,
+        layer_norm_eps: float = 1e-05,
+        use_numpy=True,
+    ):
         super().__init__()
-        self.self_attention = SelfAttention(d_model)
-        self.feed_forward = PositionWiseFeedForward(d_model, ff_dim)
-        self.first_layer_norm = LayerNorm(d_model)
-        self.second_layer_norm = LayerNorm(d_model)
+        self.d_model = d_model
+        self.num_heads = nhead
+        self.use_numpy = use_numpy
 
-    def forward(self, x: Tensor, mask: Tensor) -> Tensor:
-        t1 = self.self_attention(x, mask)
-        t2 = x + t1
-        t3 = self.first_layer_norm(t2)
-        t4 = self.feed_forward(t3)
-        t5 = t3 + t4
-        output = self.second_layer_norm(t5)
+        self.self_attention = MultiheadAttention(
+            embed_dim=d_model, num_heads=nhead, use_numpy=use_numpy
+        )
+        self.feed_forward = PositionWiseFeedForward(d_model, dim_feedforward)
+        self.first_layer_norm = LayerNorm(normalized_shape=d_model, eps=layer_norm_eps)
+        self.second_layer_norm = LayerNorm(normalized_shape=d_model, eps=layer_norm_eps)
+
+    def forward(self, x: Tensor, mask: Optional[Tensor]) -> Tensor:
+        # Apply self-attention mechanism to input x
+        attention_result = self.self_attention(x, x, x, mask)
+
+        # Combine original input x with the attention result
+        x_plus_attention = x + attention_result
+
+        # Normalize the combined result (normalizing each embedding)
+        normalized_x = self.first_layer_norm(x_plus_attention)
+
+        # Feed the normalized result through a feed-forward network
+        feed_forward_result = self.feed_forward(normalized_x)
+
+        # Combine the normalized result with the feed-forward output
+        combined_result = normalized_x + feed_forward_result
+
+        # Normalize the combined result again to produce the final output
+        output = self.second_layer_norm(combined_result)
+
         return output
 
 
@@ -514,24 +546,47 @@ class PositionWiseFeedForward(Module):
         self.w2 = Linear(ff_dim, d_model)
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.w2(self.w1(x).relu())
+        # Apply first linear transformation
+        linear1_output = self.w1(x)
+
+        # Apply ReLU activation function to the output of the first transformation
+        relu_output = linear1_output.relu()
+
+        # Apply second linear transformation
+        final_output = self.w2(relu_output)
+
+        # Return the final output
+        return final_output
 
 
 class GPT2(Module):
-    def __init__(self): ...
+    def __init__(
+        self,
+        decoder_layer: TransformerDecoderLayer,
+        num_layers: int,
+        norm: Module = None,
+    ):
+        super().__init__()
+        self.num_layers = num_layers
 
-    def forward(self, x: Tensor) -> Tensor:
-        ...
-        # X = (x_1, x_2, x_3, .... , x_n)
-        # Add Positional Encoding
-        # Transformer Decoder Layer
-        # Self attention
-        # Calculate QKV for each x_i
-        # calculate QK^T
-        # Apply upper triangular mask of negative infinity
-        # Apply softmax
-        #
-        # LM Head
+        # Create num_layers clones of the specified decoder layer
+        self.decoder_layers = []
+        for _ in range(num_layers):
+            self.decoder_layers.append(deepcopy(decoder_layer))
+
+        self.norm = norm
+
+    def forward(self, x: Tensor, mask: Optional[Tensor]):
+        # Apply the decoder layers
+        output = x
+        for transformer_decoder_layer in self.decoder_layers:
+            output = transformer_decoder_layer(output, mask)
+
+        # Apply a final normalization layer
+        if self.norm:
+            output = self.norm(output)
+
+        return output
 
 
 class ReLU(Module):
