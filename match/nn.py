@@ -62,11 +62,15 @@ class Module:
 class Linear(Module):
     """y = x W^T + b"""
 
-    def __init__(self, in_features, out_features) -> None:
+    def __init__(self, in_features, out_features, use_numpy=True) -> None:
         super().__init__()
         # Kaiming He initialization
-        self.W = Tensor.randn(out_features, in_features) * sqrt((2 / out_features) / 3)
-        self.b = Tensor.randn(out_features, 1) * sqrt((2 / out_features) / 3)
+        self.W = Tensor.randn(out_features, in_features, use_numpy=use_numpy) * sqrt(
+            (2 / out_features) / 3
+        )
+        self.b = Tensor.randn(out_features, 1, use_numpy=use_numpy) * sqrt(
+            (2 / out_features) / 3
+        )
 
     def forward(self, x: Tensor) -> Tensor:
         # Returns a new Tensor
@@ -88,7 +92,9 @@ class Conv2d(Module):
                 sub_tensordata = x.data[kernel_position_slice]
                 # Represent the data as a row vector, we can pass this by value
                 sub_tensordata_row_vector = sub_tensordata._numpy_data.flatten()
-                np_duplicate_values_array = np.append(np_duplicate_values_array, sub_tensordata_row_vector)
+                np_duplicate_values_array = np.append(
+                    np_duplicate_values_array, sub_tensordata_row_vector
+                )
                 if not printed:
                     print(
                         f"Length of single subtensor_data: {len(sub_tensordata_row_vector)} ... this should be equal to {prod(self._single_kernel_shape)}"
@@ -320,6 +326,7 @@ class Conv2d(Module):
         padding_mode: str = "zeros",
         use_numpy: bool = False,
     ) -> None:
+        super().__init__()
         self.in_channels: int = in_channels
         self.out_channels: int = out_channels
         self.stride: tuple | int = self.__initialize_position_variable(stride)
@@ -330,6 +337,201 @@ class Conv2d(Module):
         self.use_numpy = use_numpy
         self.__initialize_kernels(kernel_size)
         self.__initialize_bias(bias)
+
+
+class MultiheadAttention(Module):
+    """Multi Head Self-Attention"""
+
+    def __init__(self, embed_dim: int, num_heads: int, use_numpy=True):
+        super().__init__()
+        assert embed_dim % num_heads == 0, "embed_dim must be divisible by num_heads"
+
+        # Assign important variables
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.d_head = embed_dim // num_heads
+
+        # Initialize Query, Key, Value tensors for multihead attention.
+        self.query_weights = Linear(embed_dim, embed_dim, use_numpy=use_numpy)
+        self.key_weights = Linear(embed_dim, embed_dim, use_numpy=use_numpy)
+        self.value_weights = Linear(embed_dim, embed_dim, use_numpy=use_numpy)
+        self.concat_weights = Linear(embed_dim, embed_dim, use_numpy=use_numpy)
+
+        # Define softmax layer
+        self.softmax = Softmax(dim=3)
+
+    def forward(
+        self, query: Tensor, key: Tensor, value: Tensor, attn_mask: Tensor = None
+    ) -> Tensor:
+        # The shape of query, key, value are all (batch_size, sequence_length, embedding_dimension).
+        # Compute Q, K, V.
+        batch_size = query.shape[0]
+        sequence_length = query.shape[1]
+
+        query_vectors = self.query_weights(query)
+        key_vectors = self.key_weights(query)
+        value_vectors = self.value_weights(query)
+        print(f"query/key/value vector shape: {query_vectors.shape}")
+
+        # Reshape into many heads
+        # Value @ Value_weights = (batch_size, sequence_length, embedding_dimension) @ (num_heads, embedding_dimension, d_head)
+        # We then want to reshape this into (batches, num_heads, sequence_length, d_head)
+        query_vectors = query_vectors.reshape(
+            batch_size, self.num_heads, sequence_length, self.d_head
+        )
+        key_vectors = key_vectors.reshape(
+            batch_size, self.num_heads, sequence_length, self.d_head
+        )
+        value_vectors = value_vectors.reshape(
+            batch_size, self.num_heads, sequence_length, self.d_head
+        )
+        print(f"query/key/value vector shape (after reshape): {query_vectors.shape}")
+
+        # Apply attention
+        key_vectors_transpose = key_vectors.permute(0, 1, 3, 2)
+        print(f"key vector shape (after transpose): {key_vectors_transpose.shape}")
+        attn_scores = query_vectors @ key_vectors_transpose
+        print(f"attn score shape: {attn_scores.shape}")
+        attn_scores /= sqrt(self.d_head)
+        if attn_mask:
+            attn_scores += attn_mask
+        attn_pattern = self.softmax(attn_scores)
+        attn = attn_pattern @ value_vectors
+
+        # Concat using reshape
+        attn = attn.reshape(query.shape[0], query.shape[1], self.embed_dim)
+        attn = self.concat_weights(attn)
+
+        return attn
+
+
+class LayerNorm(Module):
+    """The mean and standard-deviation are calculated over the last D dimensions, where
+    D is the dimension of normalized_shape. For example, if normalized_shape is (3, 5)
+    (a 2-dimensional shape), the mean and standard-deviation are computed over the last
+    2 dimensions of the input (i.e. input.mean((-2, -1))).
+
+    γ and β are learnable parameters applied only if `elementwise_affine` is True.
+
+    Description adapted from: https://pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html
+    """
+
+    def __init__(
+        self,
+        normalized_shape: tuple[int] | int,
+        eps=1e-05,
+        elementwise_affine=True,
+        bias=True,
+    ):
+        super().__init__()
+        self.eps = eps
+        self.elementwise_affine = elementwise_affine
+        self.include_bias = bias
+        if isinstance(normalized_shape, int):
+            self.dimensions_to_normalize = (-1,)
+        else:
+            self.dimensions_to_normalize = tuple(
+                -1 * dim for dim in range(len(normalized_shape), 0, -1)
+            )
+
+        if elementwise_affine:
+            self.weight: Tensor = Tensor(
+                data=TensorData(size=normalized_shape, value=1)
+            )  # γ
+            if bias:
+                self.bias: Tensor = Tensor(
+                    data=TensorData(size=normalized_shape, value=0)
+                )  # β
+
+    def forward(self, x: Tensor):
+        # Calculate mean and variance over the last len(normalized_shape) dimensions.
+        mean = x.mean(dim=self.dimensions_to_normalize)
+        variance = x.var(dim=self.dimensions_to_normalize)
+
+        # Normalize the tensor (add eps to prevent divide by 0).
+        normalized_tensor = (x - mean) / ((variance + self.eps) ** (0.5))
+
+        # Apply the affine transformation if specified.
+        if self.elementwise_affine:
+            normalized_tensor = normalized_tensor * self.weight
+            if self.include_bias:
+                normalized_tensor += self.bias
+
+        return normalized_tensor
+
+
+class Softmax(Module):
+    """Adapted from https://pytorch.org/docs/stable/generated/torch.nn.Softmax.html"""
+
+    def __init__(self, dim: int):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, x: Tensor):
+        tensor_exp = x.exp()
+        tensor_exp_sum = tensor_exp.sum(dim=self.dim)
+        print(f"tensor_exp shape: {tensor_exp.shape}")
+        print(f"tensor_exp_sum shape: {tensor_exp_sum.shape}")
+        return tensor_exp / tensor_exp_sum
+
+
+class Embedding(Module):
+    # https://pytorch.org/docs/stable/generated/torch.nn.Embedding.html
+    def __init__(self, num_embeddings, embedding_dim):
+        super().__init__()
+        self.embeddings = Tensor.randn(num_embeddings, embedding_dim)
+
+    def forward(self, x: Tensor): ...
+
+
+class DecoderLayer(Module):
+    def __init__(self, d_model: int, ff_dim: int):
+        super().__init__()
+        self.self_attention = SelfAttention(d_model)
+        self.feed_forward = PositionWiseFeedForward(d_model, ff_dim)
+        self.first_layer_norm = LayerNorm(d_model)
+        self.second_layer_norm = LayerNorm(d_model)
+
+    def forward(self, x: Tensor, mask: Tensor) -> Tensor:
+        t1 = self.self_attention(x, mask)
+        t2 = x + t1
+        t3 = self.first_layer_norm(t2)
+        t4 = self.feed_forward(t3)
+        t5 = t3 + t4
+        output = self.second_layer_norm(t5)
+        return output
+
+
+class PositionalEncoding(Module): ...
+
+
+class PositionWiseFeedForward(Module):
+    "Implements FFN equation."
+
+    def __init__(self, d_model: int, ff_dim: int):
+        super().__init__()
+        self.w1 = Linear(d_model, ff_dim)
+        self.w2 = Linear(ff_dim, d_model)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.w2(self.w1(x).relu())
+
+
+class GPT2(Module):
+    def __init__(self): ...
+
+    def forward(self, x: Tensor) -> Tensor:
+        ...
+        # X = (x_1, x_2, x_3, .... , x_n)
+        # Add Positional Encoding
+        # Transformer Decoder Layer
+        # Self attention
+        # Calculate QKV for each x_i
+        # calculate QK^T
+        # Apply upper triangular mask of negative infinity
+        # Apply softmax
+        #
+        # LM Head
 
 
 class ReLU(Module):
