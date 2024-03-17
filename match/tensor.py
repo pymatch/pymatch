@@ -106,12 +106,9 @@ class Tensor(object):
         result._gradient = _gradient
         return result
 
-    def mean(self) -> Tensor:
+    def mean(self, dim: tuple | int = None, keepdims: bool = False) -> Tensor:
         """Return the mean of all values across both dimensions."""
-        result = Tensor(
-            TensorData(value=self.data.mean(), use_numpy=self.use_numpy),
-            children=(self,),
-        )
+        result = Tensor(self.data.mean(dim, keepdims), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of mean. Shape: {self.shape}")
