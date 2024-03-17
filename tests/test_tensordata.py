@@ -65,6 +65,29 @@ class TestTensorDataTest(unittest.TestCase):
 
         self.assertEqual(match_tensor.sum().item(), torch_tensor.sum().item())
 
+    def test_sum_2(self):
+        torch_tensor = torch.arange(48).reshape(2, 4, 3, 2)
+
+        match_tensor = TensorData(2, 4, 3, 2)
+        match_tensor._data = [TensorData(value=i) for i in range(48)]
+
+        self.assertTrue(
+            almost_equal(match_tensor.sum((1, 2)), torch_tensor.sum((1, 2)))
+        )
+
+    def test_sum_keepdim_2(self):
+        torch_tensor = torch.arange(48).reshape(2, 4, 3, 2)
+
+        match_tensor = TensorData(2, 4, 3, 2)
+        match_tensor._data = [TensorData(value=i) for i in range(48)]
+
+        self.assertTrue(
+            almost_equal(
+                match_tensor.sum((1, 2), keepdims=True),
+                torch_tensor.sum((1, 2), keepdims=True),
+            )
+        )
+
     def test_sum_keepdim(self):
         torch_tensor = torch.arange(24).reshape(2, 4, 3)
 

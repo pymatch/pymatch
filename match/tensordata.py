@@ -469,7 +469,7 @@ class TensorData(object):
             return TensorData(value=sum(td._item for td in self._data))
             # Case where dims is an int or tuple
         if any(ax < 0 or ax >= len(self.shape) for ax in dims):
-            raise ValueError(f"dims should be in bounds 0 and {len(self.shape)}-1")
+            raise ValueError(f"dims should be in bounds 0 and {len(self.shape)-1}")
 
         new_shape = tuple(
             1 if dim in dims else val for dim, val in enumerate(self.shape)
@@ -489,7 +489,7 @@ class TensorData(object):
             for dim, val in enumerate(self.shape):
                 if dim not in dims:
                     new_shape.append(val)
-            new_tensor.reshape(tuple(new_shape))
+            new_tensor.reshape_(tuple(new_shape))
 
         return new_tensor
 
@@ -501,8 +501,8 @@ class TensorData(object):
         res_sum = self.sum(dims, keepdims)
         if not dims:
             return res_sum / self.numel()
-        num_elements_per_mean = prod(self.shape[dim] for dim in dims)
-        quotient = TensorData(*res_sum.shape, value=num_elements_per_mean)
+
+        quotient = prod(self.shape[dim] for dim in dims)
         return res_sum / quotient
 
     def unbroadcast(self, *shape: int) -> TensorData:
