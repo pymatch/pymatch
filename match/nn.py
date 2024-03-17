@@ -408,7 +408,6 @@ class MultiheadAttention(Module):
         return attn
 
 
-# TODO: Implement variance in Tensor class
 class LayerNorm(Module):
     """The mean and standard-deviation are calculated over the last D dimensions, where
     D is the dimension of normalized_shape. For example, if normalized_shape is (3, 5)
@@ -426,7 +425,7 @@ class LayerNorm(Module):
         eps=1e-05,
         elementwise_affine=True,
         bias=True,
-        use_numpy: bool = True
+        use_numpy: bool = True,
     ):
         super().__init__()
         if isinstance(normalized_shape, int):
@@ -450,6 +449,11 @@ class LayerNorm(Module):
 
     def forward(self, x: Tensor):
         # Calculate mean and variance over the last len(normalized_shape) dimensions.
+        self.dimensions_to_normalize = tuple(
+            dim if dim >= 0 else dim + len(x.shape)
+            for dim in self.dimensions_to_normalize
+        )
+
         mean = x.mean(dim=self.dimensions_to_normalize, keepdims=True)
         variance = x.var(dim=self.dimensions_to_normalize, keepdims=True)
 
@@ -509,9 +513,15 @@ class TransformerDecoderLayer(Module):
         self.self_attention = MultiheadAttention(
             embed_dim=d_model, num_heads=nhead, use_numpy=use_numpy
         )
-        self.feed_forward = PositionWiseFeedForward(d_model, dim_feedforward)
-        self.first_layer_norm = LayerNorm(normalized_shape=d_model, eps=layer_norm_eps)
-        self.second_layer_norm = LayerNorm(normalized_shape=d_model, eps=layer_norm_eps)
+        self.feed_forward = PositionWiseFeedForward(
+            d_model, dim_feedforward, use_numpy=use_numpy
+        )
+        self.first_layer_norm = LayerNorm(
+            normalized_shape=d_model, eps=layer_norm_eps, use_numpy=use_numpy
+        )
+        self.second_layer_norm = LayerNorm(
+            normalized_shape=d_model, eps=layer_norm_eps, use_numpy=use_numpy
+        )
 
     def forward(self, x: Tensor, mask: Optional[Tensor]) -> Tensor:
         # Apply self-attention mechanism to input x
@@ -541,10 +551,10 @@ class PositionalEncoding(Module): ...
 class PositionWiseFeedForward(Module):
     "Implements FFN equation."
 
-    def __init__(self, d_model: int, ff_dim: int):
+    def __init__(self, d_model: int, ff_dim: int, use_numpy: bool = True):
         super().__init__()
-        self.w1 = Linear(d_model, ff_dim)
-        self.w2 = Linear(ff_dim, d_model)
+        self.w1 = Linear(d_model, ff_dim, use_numpy=use_numpy)
+        self.w2 = Linear(ff_dim, d_model, use_numpy=use_numpy)
 
     def forward(self, x: Tensor) -> Tensor:
         # Apply first linear transformation
@@ -566,6 +576,7 @@ class GPT2(Module):
         decoder_layer: TransformerDecoderLayer,
         num_layers: int,
         norm: Module = None,
+        use_numpy: bool = True,
     ):
         super().__init__()
         self.num_layers = num_layers
