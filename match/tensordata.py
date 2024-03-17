@@ -496,7 +496,7 @@ class TensorData(object):
     def mean(self, dims: tuple | int = None, keepdims: bool = None) -> TensorData:
         """Compute the mean of all values in the tensor."""
         if self.use_numpy:
-            res_mean = self._numpy_data.mean(dims, keepdims)
+            res_mean = self._numpy_data.mean(axis=dims, keepdims=keepdims)
             return TensorData(*res_mean.shape, use_numpy=True, numpy_data=res_mean)
         res_sum = self.sum(dims, keepdims)
         if not dims:
