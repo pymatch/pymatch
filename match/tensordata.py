@@ -632,9 +632,11 @@ class TensorData(object):
                 td._item = val
 
     def __binary_op(
-        self, op: Callable, rhs: Union[float, int, TensorData]
+        self, op: Callable, rhs: float | int | TensorData
     ) -> TensorData:
         """Internal method to perform an element-wise binary operation on the TensorData object.
+
+        We assume numpy mode is False if this function is ever invoked.
 
         This method will automatically broadcast inputs when necessary.
         """
@@ -665,10 +667,9 @@ class TensorData(object):
 
     def __add__(self, rhs: Union[float, int, TensorData]) -> TensorData:
         """Element-wise addition: self + rhs."""
+        self.__validate_numpy_mode(rhs)
         if self.use_numpy:
             if isinstance(rhs, TensorData):
-                if not rhs.use_numpy:
-                    raise TypeError("Incompatible TensorData Options")
                 res = self._numpy_data + rhs._numpy_data
                 return TensorData(
                     *res.shape,
@@ -700,6 +701,8 @@ class TensorData(object):
 
     def __mul__(self, rhs: Union[float, int, TensorData]) -> TensorData:
         """Element-wise multiplication: self * rhs."""
+        self.__validate_numpy_mode(rhs)
+        
         if self.use_numpy:
             if isinstance(rhs, TensorData):
                 if not rhs.use_numpy:
@@ -720,7 +723,13 @@ class TensorData(object):
                 )
 
         return self.__binary_op(mul, rhs)
-
+    
+    def __validate_numpy_mode(self, rhs: float | int | TensorData) -> None:
+        """Validates if self and rhs can used to perform mathematical operations."""
+        if isinstance(rhs, TensorData):
+            if self.use_numpy != rhs.use_numpy:
+                raise TypeError("Incompatible TensorData Options.")
+              
     def __rmul__(self, lhs: float | int | TensorData) -> TensorData:
         """Element-wise multiplication is commutative: lhs * self."""
         return self * lhs
@@ -750,10 +759,9 @@ class TensorData(object):
 
     def __gt__(self, rhs: float | int | TensorData) -> TensorData:
         """Element-wise comparison: self > rhs."""
+        self.__validate_numpy_mode(rhs)
         if self.use_numpy:
             if isinstance(rhs, TensorData):
-                if not rhs.use_numpy:
-                    raise TypeError("Incompatible TensorData Options")
                 res = self._numpy_data > rhs._numpy_data
                 return TensorData(
                     *res.shape,
@@ -818,9 +826,8 @@ class TensorData(object):
 
         See https://pytorch.org/docs/stable/generated/torch.matmul.html for more information
         """
+        self.__validate_numpy_mode(rhs)
         if self.use_numpy:
-            if not rhs.use_numpy:
-                raise TypeError("Incompatible TensorData Options")
             res = self._numpy_data @ rhs._numpy_data
             return TensorData(
                 *res.shape,
