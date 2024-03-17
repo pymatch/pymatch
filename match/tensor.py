@@ -97,7 +97,7 @@ class Tensor(object):
 
     def sum(self, dim: tuple | int = None, keepdims: bool = False) -> Tensor:
         """Return the sum of all values across dimensions"""
-        result = Tensor(self.data.sum(dim, keepdims), children=(self,))
+        result = Tensor(self.data.sum(dims=dim, keepdims=keepdims), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of summation. Shape: {self.shape}")
@@ -108,7 +108,7 @@ class Tensor(object):
 
     def mean(self, dim: tuple | int = None, keepdims: bool = False) -> Tensor:
         """Return the mean of all values across both dimensions."""
-        result = Tensor(self.data.mean(dim, keepdims), children=(self,))
+        result = Tensor(self.data.mean(dims=dim, keepdims=keepdims), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of mean. Shape: {self.shape}")
