@@ -280,3 +280,15 @@ class Tensor(object):
 
         result._gradient = _gradient
         return result
+
+    def var(
+        self, dim: tuple | int = None, correction=1, keepdims: bool = False
+    ) -> Tensor:
+        """Calculates the variance over the dimensions specified by dim.
+        dim can be a single dimension, list of dimensions, or None to reduce over all dimensions.
+        """
+        squared_deviation_from_mean = (self - self.mean(dim, keepdims)) ** 2
+        # The var is the average squared distance from the mean.
+        # TODO: account for degrees of freedom
+        var = squared_deviation_from_mean.mean(dim, keepdims)
+        return var
