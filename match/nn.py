@@ -426,31 +426,32 @@ class LayerNorm(Module):
         eps=1e-05,
         elementwise_affine=True,
         bias=True,
+        use_numpy: bool = True
     ):
         super().__init__()
+        if isinstance(normalized_shape, int):
+            normalized_shape = (normalized_shape,)
+
         self.eps = eps
         self.elementwise_affine = elementwise_affine
         self.include_bias = bias
-        if isinstance(normalized_shape, int):
-            self.dimensions_to_normalize = (-1,)
-        else:
-            self.dimensions_to_normalize = tuple(
-                -1 * dim for dim in range(len(normalized_shape), 0, -1)
-            )
+        self.dimensions_to_normalize = tuple(
+            -1 * dim for dim in range(len(normalized_shape), 0, -1)
+        )
 
         if elementwise_affine:
             self.weight: Tensor = Tensor(
-                data=TensorData(size=normalized_shape, value=1)
+                data=TensorData(*normalized_shape, value=1, use_numpy=use_numpy)
             )  # γ
             if bias:
                 self.bias: Tensor = Tensor(
-                    data=TensorData(size=normalized_shape, value=0)
+                    data=TensorData(*normalized_shape, value=0, use_numpy=use_numpy)
                 )  # β
 
     def forward(self, x: Tensor):
         # Calculate mean and variance over the last len(normalized_shape) dimensions.
-        mean = x.mean(dim=self.dimensions_to_normalize)
-        variance = x.var(dim=self.dimensions_to_normalize)
+        mean = x.mean(dim=self.dimensions_to_normalize, keepdims=True)
+        variance = x.var(dim=self.dimensions_to_normalize, keepdims=True)
 
         # Normalize the tensor (add eps to prevent divide by 0).
         normalized_tensor = (x - mean) / ((variance + self.eps) ** (0.5))
@@ -474,7 +475,7 @@ class Softmax(Module):
 
     def forward(self, x: Tensor):
         tensor_exp = x.exp()
-        tensor_exp_sum = tensor_exp.sum(dim=self.dim)
+        tensor_exp_sum = tensor_exp.sum(dim=self.dim, keepdims=True)
         print(f"tensor_exp shape: {tensor_exp.shape}")
         print(f"tensor_exp_sum shape: {tensor_exp_sum.shape}")
         return tensor_exp / tensor_exp_sum
@@ -576,15 +577,18 @@ class GPT2(Module):
 
         self.norm = norm
 
-    def forward(self, x: Tensor, mask: Optional[Tensor]):
+    def forward(self, x: Tensor, mask: Tensor = None):
         # Apply the decoder layers
+        print(f"GPT2 Input Tensor Shape: {x.shape}")
         output = x
         for transformer_decoder_layer in self.decoder_layers:
-            output = transformer_decoder_layer(output, mask)
+            output = transformer_decoder_layer(output, None)
 
         # Apply a final normalization layer
         if self.norm:
             output = self.norm(output)
+
+        print(f"GPT2 Output Tensor Shape: {output.shape}")
 
         return output
 
