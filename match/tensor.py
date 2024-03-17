@@ -95,16 +95,13 @@ class Tensor(object):
     def numel(self) -> int:
         return len(self.data._data)
 
-    # TODO: Needs to take a dimension parameter
-    def sum(self, dim: int = None, keepdims: bool = False) -> Tensor:
+    def sum(self, dim: tuple | int = None, keepdims: bool = False) -> Tensor:
         """Return the sum of all values across dimensions"""
         result = Tensor(self.data.sum(dim, keepdims), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of summation. Shape: {self.shape}")
-            self.grad += 1 * TensorData(
-                *self.shape, value=result.data.item(), use_numpy=self.use_numpy
-            )
+            self.grad += 1 * result.data * result.grad
 
         result._gradient = _gradient
         return result
@@ -118,11 +115,7 @@ class Tensor(object):
 
         def _gradient() -> None:
             info(f"Gradient of mean. Shape: {self.shape}")
-            self.grad += TensorData(
-                *self.shape,
-                value=result.data.item() / self.numel,
-                use_numpy=self.use_numpy,
-            )
+            self.grad += 1 * result.data * result.grad
 
         result._gradient = _gradient
         return result
@@ -269,16 +262,14 @@ class Tensor(object):
         return result
 
     def permute(self, *dims: int) -> Tensor:
-        # the gradient is the permute of itself
-        # permute (0,1,2,3) into (1,0,3,2)...
-        # the gradient would be permuting (1,0,3,2) using (1,0,3,2) to get (0,1,2,3) again
 
         result: Tensor = Tensor(self.data.permute(*dims), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of permute. Shape: {self.shape}")
             # Permuting the result with the same parameter (reverse)
-            self.grad += result.grad.permute(*dims)
+            new_dims = tuple(dims.index(i) for i in range(len(dims)))
+            self.grad += result.grad.permute(*new_dims)
 
         result._gradient = _gradient
         return result
