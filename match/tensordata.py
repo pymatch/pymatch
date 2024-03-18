@@ -514,7 +514,6 @@ class TensorData(object):
         correct_adjoint = self
 
         if self.shape != shape:
-            print(self.shape, shape)
             dim_diff = abs(len(self.shape) - len(shape))
             if dim_diff:  # != 0
                 summation_dims = tuple(range(dim_diff))
