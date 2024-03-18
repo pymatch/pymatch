@@ -185,12 +185,8 @@ class Tensor(object):
         result = Tensor(self.data**rhs, children=(self,))
 
         def _gradient() -> None:
-            # rhs_vals will be a number (not Tensor)
             info(f"Gradient of exponentiation. Shape: {self.shape}")
-            g = rhs * self.data ** (rhs - 1) * result.grad
-            self.grad += g.unbroadcast(*self.shape)
-            # g is the same shape as self so we don't need to unbroadcast?? Check this.
-            # self.grad += rhs * self.data ** (rhs - 1) * result.grad
+            self.grad += rhs * self.data ** (rhs - 1) * result.grad
 
         result._gradient = _gradient
         return result
@@ -202,10 +198,18 @@ class Tensor(object):
         result = Tensor(self.data @ rhs.data, children=(self, rhs))
 
         def _gradient() -> None:
+            # Instead of rhs.data.T, we should transpose only the last two dimensions because 
+            # thats how we multiply with tensor shigher than two dimensions
+            # We also have to unbroadcast to the last two dimensions because we multiply
+            rhs_permutation = tuple(range(len(rhs.shape)-2)) + (len(rhs.shape)-1,len(rhs.shape)-2)
+            self_permutation = tuple(range(len(self.shape)-2)) + (len(self.shape)-1,len(self.shape)-2)
             info(f"Gradient of Tensor multiplication (LHS). Shape: {self.shape}")
-            self.grad += result.grad @ rhs.data.T
+            g = result.grad @ rhs.data.permute(*rhs_permutation)
+            self.grad += g.unbroadcast(*self.shape)
             info(f"Gradient of Tensor multiplication (RHS). Shape: {self.shape}")
-            rhs.grad += self.data.T @ result.grad
+            g = self.data.permute(*self_permutation) @ result.grad
+            rhs.grad += g.unbroadcast(*rhs.shape)
+            # Why unbroadcast to rhs shape? and self.shape?
 
         result._gradient = _gradient
         return result
