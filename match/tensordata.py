@@ -514,18 +514,20 @@ class TensorData(object):
         correct_adjoint = self
 
         if self.shape != shape:
+            print(self.shape, shape)
             dim_diff = abs(len(self.shape) - len(shape))
             if dim_diff:  # != 0
                 summation_dims = tuple(range(dim_diff))
                 correct_adjoint = self.sum(dims=summation_dims)
+            # If the shape was (3,4,5,6) and we want to unbroadcast it to (3,4,1,1), we need to sum the 2nd and 3rd dimension with keepdim True
 
-                originally_ones = tuple(
-                    [axis for axis, size in enumerate(shape) if size == 1]
+            originally_ones = tuple(
+                [axis for axis, size in enumerate(shape) if size == 1]
+            )
+            if len(originally_ones) != 0:
+                correct_adjoint = correct_adjoint.sum(
+                    dims=originally_ones, keepdims=True
                 )
-                if len(originally_ones) != 0:
-                    correct_adjoint = correct_adjoint.sum(
-                        dims=originally_ones, keepdims=True
-                    )
 
         return correct_adjoint
 
