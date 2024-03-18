@@ -379,15 +379,18 @@ class MultiheadAttention(Module):
         # Reshape into many heads
         # Value @ Value_weights = (batch_size, sequence_length, embedding_dimension) @ (num_heads, embedding_dimension, d_head)
         # We then want to reshape this into (batches, num_heads, sequence_length, d_head)
+        # first, we have to reshape from (batch_size, sequence_length, embedding_dimension) to (batch_size, sequence_length, num_heads, d_head) to avoid splitting the embeddings themselves
+        # then we have to permute the dimensions 1,2 so get (batches, num_heads, sequence_length, d_head) so all the values are in the right place
+        # we can't just reshape into ( batch_size, sequence_length, self.num_heads, self.d_head) directly
         query_vectors = query_vectors.reshape(
-            batch_size, self.num_heads, sequence_length, self.d_head
-        )
+            batch_size, sequence_length, self.num_heads, self.d_head
+        ).permute(0, 2, 1, 3)
         key_vectors = key_vectors.reshape(
-            batch_size, self.num_heads, sequence_length, self.d_head
-        )
+            batch_size, sequence_length, self.num_heads, self.d_head
+        ).permute(0, 2, 1, 3)
         value_vectors = value_vectors.reshape(
-            batch_size, self.num_heads, sequence_length, self.d_head
-        )
+            batch_size, sequence_length, self.num_heads, self.d_head
+        ).permute(0, 2, 1, 3)
         print(f"query/key/value vector shape (after reshape): {query_vectors.shape}")
 
         # Apply attention
@@ -571,6 +574,7 @@ class PositionWiseFeedForward(Module):
 
 
 class GPT2(Module):
+    """https://www.youtube.com/watch?v=ISNdQcPhsts"""
     def __init__(
         self,
         decoder_layer: TransformerDecoderLayer,
