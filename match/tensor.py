@@ -11,6 +11,8 @@ from random import gauss
 
 import numpy as np
 
+from icecream import ic
+
 
 class Tensor(object):
     def __init__(self, data: TensorData, children: tuple = ()) -> None:
