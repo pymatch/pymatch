@@ -563,7 +563,7 @@ class TensorData(object):
                 dtype=self.dtype,
                 use_numpy=True,
                 # This is the ReLU
-                numpy_data=sigmoid(self._numpy_data),
+                numpy_data=1 / (1 + np.exp(-self._numpy_data)),
             )
         new_tensor = TensorData(*self.shape)
         for i in range(len(new_tensor._data)):
@@ -631,9 +631,7 @@ class TensorData(object):
             for td in self._data:
                 td._item = val
 
-    def __binary_op(
-        self, op: Callable, rhs: float | int | TensorData
-    ) -> TensorData:
+    def __binary_op(self, op: Callable, rhs: float | int | TensorData) -> TensorData:
         """Internal method to perform an element-wise binary operation on the TensorData object.
 
         We assume numpy mode is False if this function is ever invoked.
@@ -702,7 +700,7 @@ class TensorData(object):
     def __mul__(self, rhs: Union[float, int, TensorData]) -> TensorData:
         """Element-wise multiplication: self * rhs."""
         self.__validate_numpy_mode(rhs)
-        
+
         if self.use_numpy:
             if isinstance(rhs, TensorData):
                 if not rhs.use_numpy:
@@ -723,13 +721,13 @@ class TensorData(object):
                 )
 
         return self.__binary_op(mul, rhs)
-    
+
     def __validate_numpy_mode(self, rhs: float | int | TensorData) -> None:
         """Validates if self and rhs can used to perform mathematical operations."""
         if isinstance(rhs, TensorData):
             if self.use_numpy != rhs.use_numpy:
                 raise TypeError("Incompatible TensorData Options.")
-              
+
     def __rmul__(self, lhs: float | int | TensorData) -> TensorData:
         """Element-wise multiplication is commutative: lhs * self."""
         return self * lhs
