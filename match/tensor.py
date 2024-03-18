@@ -38,11 +38,10 @@ class Tensor(object):
             shape = shape[0]
 
         if use_numpy:
-            rng = np.random.default_rng(seed=47)
             data = TensorData(
                 *shape,
                 use_numpy=True,
-                numpy_data=rng.random(shape),
+                numpy_data=np.random.default_rng().normal(0, 1, size=shape),
             )
             return Tensor(data=data)
 
@@ -103,7 +102,7 @@ class Tensor(object):
 
         def _gradient() -> None:
             info(f"Gradient of summation. Shape: {self.shape}")
-            self.grad += 1 * result.data * result.grad
+            self.grad += 1 * result.grad
 
         result._gradient = _gradient
         return result
@@ -111,10 +110,12 @@ class Tensor(object):
     def mean(self, dim: tuple | int = None, keepdims: bool = False) -> Tensor:
         """Return the mean of all values across both dimensions."""
         result = Tensor(self.data.mean(dims=dim, keepdims=keepdims), children=(self,))
-
+        
         def _gradient() -> None:
             info(f"Gradient of mean. Shape: {self.shape}")
-            self.grad += 1 * result.data * result.grad
+            # Calculate the number of elements in the mean
+            num_elements_in_mean = prod(self.shape) / prod(result.shape)
+            self.grad += (1/num_elements_in_mean) * result.grad 
 
         result._gradient = _gradient
         return result
