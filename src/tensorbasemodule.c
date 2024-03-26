@@ -57,7 +57,7 @@
 typedef struct
 {
     PyObject_HEAD
-    TensorBase td;
+    TensorBase tb;
 } PyTensorBase;
 // clang-format on
 
@@ -74,16 +74,16 @@ typedef struct
 
 static PyObject *PyTensorBase_get_ndim(PyTensorBase *self, PyObject *Py_UNUSED(ignored))
 {
-    return PyLong_FromLong(self->td.ndim);
+    return PyLong_FromLong(self->tb.ndim);
 }
 
 static PyObject *PyTensorBase_get_shape(PyTensorBase *self, PyObject *Py_UNUSED(ignored))
 {
-    PyObject *shape = PyTuple_New(self->td.ndim);
+    PyObject *shape = PyTuple_New(self->tb.ndim);
 
-    for (long i = 0; i < self->td.ndim; i++)
+    for (long i = 0; i < self->tb.ndim; i++)
     {
-        if (PyTuple_SetItem(shape, i, PyLong_FromLong(self->td.shape[i])))
+        if (PyTuple_SetItem(shape, i, PyLong_FromLong(self->tb.shape[i])))
         {
             PyErr_SetString(PyExc_RuntimeError, "Failed to set shape item.");
             return NULL;
@@ -111,16 +111,16 @@ static PyGetSetDef PyTensorBase_getset[] = {
 
 static PyObject *PyTensorBase_numel(PyTensorBase *self, PyObject *Py_UNUSED(ignored))
 {
-    return PyLong_FromLong(self->td.numel);
+    return PyLong_FromLong(self->tb.numel);
 }
 
 static PyObject *PyTensorBase_stride(PyTensorBase *self, PyObject *Py_UNUSED(ignored))
 {
-    PyObject *stride = PyTuple_New(self->td.ndim);
+    PyObject *stride = PyTuple_New(self->tb.ndim);
 
-    for (long i = 0; i < self->td.ndim; i++)
+    for (long i = 0; i < self->tb.ndim; i++)
     {
-        if (PyTuple_SetItem(stride, i, PyLong_FromLong(self->td.strides[i])))
+        if (PyTuple_SetItem(stride, i, PyLong_FromLong(self->tb.strides[i])))
         {
             PyErr_SetString(PyExc_RuntimeError, "Failed to set shape item.");
             return NULL;
@@ -133,7 +133,7 @@ static PyObject *PyTensorBase_stride(PyTensorBase *self, PyObject *Py_UNUSED(ign
 // TODO: eventually remove this
 static PyObject *PyTensorBase_print(PyTensorBase *self, PyObject *Py_UNUSED(ignored))
 {
-    TensorBase_stringify(&self->td);
+    TensorBase_stringify(&self->tb);
     Py_RETURN_NONE;
 }
 
@@ -230,7 +230,7 @@ static int PyTensorBase_init(PyTensorBase *self, PyObject *args, PyObject *kwds)
         td_shape[i] = PyLong_AsLong(item);
     }
 
-    if (TensorBase_init(&self->td, td_shape) < 0)
+    if (TensorBase_init(&self->tb, td_shape) < 0)
     {
         PyErr_SetString(PyExc_RuntimeError, "Failed to initialize tensor data.");
         return -1;
@@ -241,7 +241,7 @@ static int PyTensorBase_init(PyTensorBase *self, PyObject *args, PyObject *kwds)
 
 static void PyTensorBase_dealloc(PyTensorBase *self)
 {
-    TensorBase_dealloc(&self->td);
+    TensorBase_dealloc(&self->tb);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
@@ -322,7 +322,7 @@ static PyTensorBase *PyTensorBase_create(ShapeArray shape)
         return NULL;
     }
 
-    if (TensorBase_init(&result->td, shape) < 0)
+    if (TensorBase_init(&result->tb, shape) < 0)
     {
         PyErr_SetString(PyExc_RuntimeError, "Failed to initialize tensor base.");
         return NULL;
@@ -340,7 +340,7 @@ static PyTensorBase *PyTensorBase_create(ShapeArray shape)
 //         return NULL;
 //     }
 
-//     result->td = t->td;
+//     result->tb = t->tb;
 
 //     // Muck with strides...
 
@@ -359,20 +359,20 @@ static PyTensorBase *PyTensorBase_create(ShapeArray shape)
 
 static PyObject *PyTensorBase_add_tensor_scalar(PyTensorBase *t, scalar s)
 {
-    PyTensorBase *result = PyTensorBase_create(t->td.shape);
+    PyTensorBase *result = PyTensorBase_create(t->tb.shape);
     if (!result)
     {
         // NOTE: error string set in PyTensorBase_create
         return NULL;
     }
 
-    TensorBase_add_tensor_scalar(&t->td, s, &result->td);
+    TensorBase_add_tensor_scalar(&t->tb, s, &result->tb);
     return (PyObject *)result;
 }
 
 static PyObject *PyTensorBase_add_tensor_tensor(PyTensorBase *a, PyTensorBase *b)
 {
-    PyTensorBase *result = PyTensorBase_create(a->td.shape);
+    PyTensorBase *result = PyTensorBase_create(a->tb.shape);
     if (!result)
     {
         // NOTE: error string set in PyTensorBase_create
@@ -382,13 +382,13 @@ static PyObject *PyTensorBase_add_tensor_tensor(PyTensorBase *a, PyTensorBase *b
     TensorBase a_temp;
     TensorBase b_temp;
 
-    if (TensorBase_broadcast_for_binop(&a->td, &b->td, &a_temp, &b_temp) < 0)
+    if (TensorBase_broadcast_for_binop(&a->tb, &b->tb, &a_temp, &b_temp) < 0)
     {
         PyErr_SetString(PyExc_ValueError, "Incompatible shapes for addition.");
         return NULL;
     }
 
-    TensorBase_add_tensor_tensor(&a_temp, &b_temp, &result->td);
+    TensorBase_add_tensor_tensor(&a_temp, &b_temp, &result->tb);
     return (PyObject *)result;
 }
 
@@ -444,9 +444,9 @@ static PyObject *PyTensorBase_ones(PyTensorBase *self, PyObject *args)
         return NULL;
     }
 
-    for (long i = 0; i < self->td.numel; i++)
+    for (long i = 0; i < self->tb.numel; i++)
     {
-        self->td.data[i] = 1;
+        self->tb.data[i] = 1;
     }
 
     return self;
@@ -476,7 +476,7 @@ static PyModuleDef TensorBaseModule = {
 };
 
 PyMODINIT_FUNC
-PyInit_TensorBase(void)
+PyInit_tensorbase(void)
 {
 
     if (PyType_Ready(&PyTensorBaseType) < 0)
