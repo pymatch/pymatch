@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from math import sqrt, prod
+from math import prod, sqrt
 
-import match
-from match import Tensor, TensorData
-from match.util import get_kernel_position_slices_conv2d
+from .tensor import Tensor
+from .util import get_kernel_position_slices_conv2d
 
 
 class Module:
@@ -132,27 +131,27 @@ class Conv2d(Module):
             print(kernel_positions[i])
         print()
 
-        temp_tensordata_with_duplicate_values = TensorData(0)
+        temp_tensorbase_with_duplicate_values = TensorBase(0)
 
         # This assumes that the kernel positions are in sorted order of rows then columns.
         printed = False
         for kernel_position_slice in kernel_positions:
             # Grab the sub tensor
-            sub_tensordata = x.data[kernel_position_slice]
+            sub_tensorbase = x.data[kernel_position_slice]
             # Represent the data as a row vector, we can pass this by value
-            temp_tensordata_with_duplicate_values._data += sub_tensordata._data
+            temp_tensorbase_with_duplicate_values._data += sub_tensorbase._data
             if not printed:
                 print(
-                    f"Length of single subtensor_data: {len(sub_tensordata._data)} ... this should be equal to {prod(self._single_kernel_shape)}"
+                    f"Length of single subtensor_data: {len(sub_tensorbase._data)} ... this should be equal to {prod(self._single_kernel_shape)}"
                 )
                 printed = True
 
         print(
-            f"Total number of elements in duplicate tensor: {len(temp_tensordata_with_duplicate_values._data)}"
+            f"Total number of elements in duplicate tensor: {len(temp_tensorbase_with_duplicate_values._data)}"
         )
 
         if len(x.shape) == 4:
-            temp_tensordata_with_duplicate_values.reshape_(
+            temp_tensorbase_with_duplicate_values.reshape_(
                 (
                     N,
                     int(len(kernel_positions) / N),
@@ -163,7 +162,7 @@ class Conv2d(Module):
                 f"Reshaping to {(N,int(len(kernel_positions) / N),prod(self._single_kernel_shape))}"
             )
         else:
-            temp_tensordata_with_duplicate_values.reshape_(
+            temp_tensorbase_with_duplicate_values.reshape_(
                 (
                     len(kernel_positions),
                     prod(self._single_kernel_shape),
@@ -174,7 +173,7 @@ class Conv2d(Module):
             )
 
         temp_tensor_with_duplicate_values = Tensor(
-            data=temp_tensordata_with_duplicate_values
+            data=temp_tensorbase_with_duplicate_values
         )
 
         # (9 positions, 32 kernels)

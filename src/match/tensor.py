@@ -2,21 +2,22 @@ from __future__ import annotations
 
 from copy import deepcopy
 from logging import info
+from math import ceil, exp, prod
 
-from .tensordata import TensorData
-
-from operator import add, ge, gt, le, lt, mul, pow
-from math import exp, ceil, prod
+# from operator import add, ge, gt, le, lt, mul, pow
 from random import gauss
+
+# from .tensorbase import TensorBase
+from . import TensorBase
 
 
 class Tensor(object):
-    def __init__(self, data: TensorData, children: tuple = ()) -> None:
+    def __init__(self, data: TensorBase, children: tuple = ()) -> None:
         """A Tensor object that tracks computations for computing gradients."""
         super().__init__()
         self.shape = data.shape
         self.data = data
-        self.grad = TensorData(*self.shape)
+        self.grad = TensorBase(*self.shape)
 
         # Backpropagation compute graph
         self._gradient = lambda: None
@@ -32,13 +33,13 @@ class Tensor(object):
         if isinstance(shape[0], tuple):
             shape = shape(0)
         if not shape:
-            return Tensor(TensorData(value=generator()))
+            return Tensor(TensorBase(value=generator()))
 
-        rand_tensordata = TensorData(0)
-        data = [TensorData(value=generator()) for _ in range(prod(shape))]
-        rand_tensordata._data = data
-        rand_tensordata.reshape_(shape)
-        return Tensor(rand_tensordata)
+        rand_tensorbase = TensorBase(0)
+        data = [TensorBase(value=generator()) for _ in range(prod(shape))]
+        rand_tensorbase._data = data
+        rand_tensorbase.reshape_(shape)
+        return Tensor(rand_tensorbase)
 
     def backward(self) -> None:
         """Compute all gradients using backpropagation."""
@@ -77,29 +78,29 @@ class Tensor(object):
 
         result._gradient = _gradient
         return result
-    
+
     @property
     def numel(self) -> int:
         return len(self.data._data)
 
     def sum(self) -> Tensor:
         """Return the sum of all values across both dimensions."""
-        result = Tensor(TensorData(value=self.data.sum()), children=(self,))
+        result = Tensor(TensorBase(value=self.data.sum()), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of summation. Shape: {self.shape}")
-            self.grad += TensorData(*self.shape, value=result.data.item())
+            self.grad += TensorBase(*self.shape, value=result.data.item())
 
         result._gradient = _gradient
         return result
 
     def mean(self) -> Tensor:
         """Return the mean of all values across both dimensions."""
-        result = Tensor(TensorData(value=self.data.mean()), children=(self,))
+        result = Tensor(TensorBase(value=self.data.mean()), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of mean. Shape: {self.shape}")
-            self.grad += TensorData(*self.shape, value=result.data.item() / self.numel)
+            self.grad += TensorBase(*self.shape, value=result.data.item() / self.numel)
 
 
         result._gradient = _gradient
@@ -232,7 +233,7 @@ class Tensor(object):
     # unpermuting and un-reshaping
 
     def reshape(self, *shape: int) -> Tensor:
-        """Helper method to reshape and return a new TensorData object without changing the data"""
+        """Helper method to reshape and return a new TensorBase object without changing the data"""
         # The reshape method can accept either a variadict or a tuple.
         result: Tensor = Tensor(self.data.reshape(shape), children=(self,))
 

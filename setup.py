@@ -1,5 +1,5 @@
 from setuptools import Extension, setup
 
-tensordata_module = Extension("match.tensorbase", sources=["src/tensorbase.c"])
+tensorbase_module = Extension(name="match.TensorBase", sources=["src/tensorbasemodule.c"])
 
-setup(ext_modules=[tensordata_module])
+setup(ext_modules=[tensorbase_module])

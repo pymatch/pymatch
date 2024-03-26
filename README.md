@@ -40,11 +40,11 @@ python -m pip install --editable .
 │     ├──  __init__.py      # -- default library import statements
 │     ├──  nn.py            # -- higher-level neural network functionality
 │     ├──  tensor.py        # -- an automatic differentiation tensor class
-│     ├──  tensordata.py    # -- a storage class for tensor data
+│     ├──  tensor----.py    # -- a storage class for tensor data
 │     └──  util.py          # -- utility functions
 ├──  tests/                 #
 │  ├──  __init__.py         #
-│  └──  test_tensordata.py  #
+│  └──  test_tensor----.py  #
 ├──  pyproject.toml         #
 ├──  LICENSE                #
 └──  README.md              #

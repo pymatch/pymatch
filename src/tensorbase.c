@@ -14,6 +14,8 @@
 //      - matmul, dot, etc.
 //      - in-place operators
 
+// [Reshaping PyTorch Tensors - DZone](https://dzone.com/articles/reshaping-pytorch-tensors)
+
 // ----------------------------------------------------------------
 //   ▄▄             ▄▄   █
 //  █▀▀▌           ▐▛▀   ▀

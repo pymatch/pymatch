@@ -467,9 +467,9 @@ static PyMethodDef PyTensorBase_functions[] = {
 // ▝▘ ▝▘ ▝▀▘  ▝▀▝▘ ▀▀▝▘  ▀▀  ▝▀▀
 // ----------------------------------------------------------------
 
-static PyModuleDef PyTensorBase = {
+static PyModuleDef TensorBaseModule = {
     .m_base = PyModuleDef_HEAD_INIT,
-    .m_name = "match",
+    .m_name = "match.TensorBase",
     .m_doc = "TODO: docs",
     .m_size = -1,
     .m_methods = PyTensorBase_functions,
@@ -483,12 +483,12 @@ PyInit_PyTensorBase(void)
     if (PyType_Ready(&PyTensorBaseType) < 0)
         return NULL;
 
-    m = PyModule_Create(&PyTensorBase);
+    m = PyModule_Create(&TensorBaseModule);
     if (m == NULL)
         return NULL;
 
     Py_INCREF(&PyTensorBaseType);
-    if (PyModule_AddObject(m, "PyTensorBase", (PyObject *)&PyTensorBaseType) < 0)
+    if (PyModule_AddObject(m, "TensorBase", (PyObject *)&PyTensorBaseType) < 0)
     {
         Py_DECREF(&PyTensorBaseType);
         Py_DECREF(m);
