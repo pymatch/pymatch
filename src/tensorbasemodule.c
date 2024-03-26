@@ -258,7 +258,7 @@ static void PyTensorBase_dealloc(PyTensorBase *self)
 // NOTE: disabling formatter due to PyVarObject_HEAD_INIT macro
 static PyTypeObject PyTensorBaseType = {
     .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "match.TensorBase",
+    .tp_name = "match.tensorbase.TensorBase",
     .tp_doc = PyDoc_STR("TODO: docs"),
     // .tp_repr = PyTensorBase_str,
     // .tp_str = PyTensorBase_str,
@@ -318,13 +318,13 @@ static PyTensorBase *PyTensorBase_create(ShapeArray shape)
     PyTensorBase *result = (PyTensorBase *)PyObject_New(PyTensorBase, &PyTensorBaseType);
     if (result == NULL)
     {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to create new PyTensorBase object.");
+        PyErr_SetString(PyExc_RuntimeError, "Failed to create new TensorBase object.");
         return NULL;
     }
 
     if (TensorBase_init(&result->td, shape) < 0)
     {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to initialize tensor data.");
+        PyErr_SetString(PyExc_RuntimeError, "Failed to initialize tensor base.");
         return NULL;
     }
 
@@ -469,21 +469,20 @@ static PyMethodDef PyTensorBase_functions[] = {
 
 static PyModuleDef TensorBaseModule = {
     .m_base = PyModuleDef_HEAD_INIT,
-    .m_name = "match.TensorBase",
-    .m_doc = "TODO: docs",
+    .m_name = "match.tensorbase",
+    .m_doc = PyDoc_STR("TODO: docs"),
     .m_size = -1,
     .m_methods = PyTensorBase_functions,
 };
 
 PyMODINIT_FUNC
-PyInit_PyTensorBase(void)
+PyInit_TensorBase(void)
 {
-    PyObject *m;
 
     if (PyType_Ready(&PyTensorBaseType) < 0)
         return NULL;
 
-    m = PyModule_Create(&TensorBaseModule);
+    PyObject *m = PyModule_Create(&TensorBaseModule);
     if (m == NULL)
         return NULL;
 
