@@ -3,6 +3,7 @@
 I'm not sure that we'll want to add this to the Python Package Index. The intended use is for reading through the code, not using as an installable library.
 
 ## Notes on C Extension
+
 ~~~bash
 # Initial install (no --editable flag)
 python -m pip install .
@@ -21,15 +22,25 @@ We might need to run `match` using one of these alternative Python implementatio
 - [numba](https://github.com/numba/numba)
 - [cython](https://github.com/cython/cython)
 - [pypy](https://www.pypy.org/)
+- [Mypyc](https://mypyc.readthedocs.io/en/latest/)
 
-We could also replace the pure-python `TensorData` with an extension or numpy (I don't like having numpy as an external dependency).
+We could also replace the pure-python `TensorBase` with an extension or numpy (I don't like having numpy as an external dependency).
 
 - C extension (or pybind11, pyo3, nanobind)
 - numpy
 
+**Strongly consider numba**: [The wrong way to speed up your code with Numba](https://pythonspeed.com/articles/slow-numba/)
+
+Need to benchmark, ideally
+- c extension
+- codon
+- numba
+- pypy
+- numpy
+
 ## Log/Notes
 
-- Add in-place operations in `TensorData` such as `x.add_`, `x.radd_`, etc.
+- Add in-place operations in `TensorBase` such as `x.add_`, `x.radd_`, etc.
 - Upgrade to 3.12, create a virtual environment, prof clark uses [miniforge](https://github.com/conda-forge/miniforge)
 - Add note in readme about how to create my virtual environment
 - Update readme
@@ -37,7 +48,7 @@ We could also replace the pure-python `TensorData` with an extension or numpy (I
 10/25
 
 - Fix Types: use float|int instead of Union[float, int]
-- Use lhs.reshape for a shallow copy instead of modifying lhs directly with lhs.reshape_; see line 630:635 in matmul tensordata.py
+- Use lhs.reshape for a shallow copy instead of modifying lhs directly with lhs.reshape_; see line 630:635 in matmul tensorbase.py
 - Add white space for logically separable code blocks and comments
   - View three.js source-code coding style for reference
 
