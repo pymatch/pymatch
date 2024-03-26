@@ -23,8 +23,10 @@
     "pybind",
     "pymatch",
     "pypy",
+    "randn",
+    "rdiv",
     "repr",
-    "tensordata",
+    "tensorbase",
     "TPFLAGS",
     "unaryfunc"
   ],
