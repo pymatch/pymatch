@@ -74,6 +74,33 @@ static long indices_to_index(IndexArray indices, StrideArray strides, long ndim)
     return index;
 }
 
+typedef struct
+{
+    scalar a;
+    scalar b;
+} randn_pair;
+
+// Box-Muller method for generating normally distributed random numbers
+// https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform#C++
+randn_pair randn(scalar mu, scalar sigma)
+{
+    scalar two_pi = 2.0 * M_PI;
+
+    scalar u1, u2;
+    do
+    {
+        u1 = rand() / RAND_MAX;
+    } while (u1 == 0);
+
+    scalar mag = sigma * sqrt(-2.0 * log(u1));
+
+    randn_pair result = {0};
+    result.a = mag * cos(two_pi * u2) + mu;
+    result.b = mag * sin(two_pi * u2) + mu;
+
+    return result;
+}
+
 // ----------------------------------------------------------------
 // ▗▄▄▄▖                              ▗▄▄▖
 // ▝▀█▀▘                              ▐▛▀▜▌
@@ -165,46 +192,66 @@ static void TensorBase_dealloc(TensorBase *td)
     memset(td->strides, 0, sizeof(StrideArray));
 }
 
-// TODO: turn into stringify
-void print_vector(scalar *v, long n)
+void TensorBase_to_string(TensorBase *td, char *buffer, size_t buffer_size)
 {
-    for (long i = 0; i < n; i++)
+    int bytes_written = snprintf(buffer, buffer_size, "[");
+    buffer_size -= bytes_written;
+    buffer += bytes_written;
+
+    for (size_t index = 0; index < td->numel && buffer_size > 0; index++)
     {
-        const char *sep = i < n - 1 ? ", " : "";
-        printf("%f%s", v[i], sep);
+        const char *sep = index < td->numel - 1 ? ", " : "";
+        bytes_written = snprintf(buffer, buffer_size, "%f%s", td->data[index], sep);
+        buffer_size -= bytes_written;
+        buffer += bytes_written;
     }
+
+    snprintf(buffer, buffer_size, "]");
 }
 
-// TODO: turn into stringify
-void print_tensor(TensorBase *td, long current_dim, IndexArray indices)
+void TensorBase_randn(TensorBase *td, scalar mu, scalar sigma)
 {
-    printf("[");
-    if (current_dim == td->ndim - 1)
+    for (long i = 0; i < td->numel; i += 2)
     {
-        // long index = TensorBase_indices_to_index(td, indices);
-        long index = indices_to_index(indices, td->strides, td->ndim);
-        print_vector(&td->data[index], td->shape[current_dim]);
-    }
-    else
-    {
-        for (long dim = 0; dim < td->shape[current_dim]; dim++)
+        randn_pair pair = randn(mu, sigma);
+        td->data[i] = pair.a;
+        if (i + 1 < td->numel)
         {
-            IndexArray new_indices = {0};
-            memcpy(new_indices, indices, sizeof(IndexArray));
-            new_indices[current_dim] = dim;
-            print_tensor(td, current_dim + 1, new_indices);
+            td->data[i + 1] = pair.b;
         }
     }
-    printf("] ");
 }
 
-// TODO: change to accept output pointer?
-static void TensorBase_stringify(TensorBase *td)
-{
-    IndexArray indices = {0};
-    print_tensor(td, 0, indices);
-    printf("\n");
-}
+// // TODO: turn into stringify
+// void print_tensor(TensorBase *td, long current_dim, IndexArray indices)
+// {
+//     printf("[");
+//     if (current_dim == td->ndim - 1)
+//     {
+//         // long index = TensorBase_indices_to_index(td, indices);
+//         long index = indices_to_index(indices, td->strides, td->ndim);
+//         print_vector(&td->data[index], td->shape[current_dim]);
+//     }
+//     else
+//     {
+//         for (long dim = 0; dim < td->shape[current_dim]; dim++)
+//         {
+//             IndexArray new_indices = {0};
+//             memcpy(new_indices, indices, sizeof(IndexArray));
+//             new_indices[current_dim] = dim;
+//             print_tensor(td, current_dim + 1, new_indices);
+//         }
+//     }
+//     printf("] ");
+// }
+
+// // TODO: change to accept output pointer?
+// static void TensorBase_stringify(TensorBase *td)
+// {
+//     IndexArray indices = {0};
+//     print_tensor(td, 0, indices);
+//     printf("\n");
+// }
 
 // ----------------------------------------------------------------
 // ▗▄▄▖                   ▗▖                      █
