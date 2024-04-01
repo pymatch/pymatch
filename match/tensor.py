@@ -3,8 +3,6 @@ from __future__ import annotations
 from copy import deepcopy
 from logging import info
 
-from .tensordata import TensorData
-
 from operator import add, ge, gt, le, lt, mul, pow
 from math import exp, ceil, prod
 from random import gauss
@@ -13,6 +11,13 @@ import numpy as np
 
 from icecream import ic
 
+use_numpy = True
+
+if use_numpy:
+    from .tensordata import TensorData as TensorData
+else:
+    from .tensordata_numpy import TensorData as TensorData
+
 
 class Tensor(object):
     def __init__(self, data: TensorData, children: tuple = ()) -> None:
@@ -20,9 +25,8 @@ class Tensor(object):
         # super().__init__()
         self.shape: tuple = data.shape
         self.data: TensorData = data
-        self.use_numpy: bool = self.data.use_numpy
         # issue here
-        self.grad = TensorData(*self.shape, use_numpy=self.use_numpy)
+        self.grad = TensorData(*self.shape)
 
         # Backpropagation compute graph
         self._gradient = lambda: None
@@ -34,14 +38,13 @@ class Tensor(object):
     def __str__(self) -> str:
         return self.__repr__()
 
-    def randn(*shape, generator=lambda: gauss(0, 1), use_numpy=False) -> Tensor:
+    def randn(*shape, generator=lambda: gauss(0, 1)) -> Tensor:
         if isinstance(shape[0], tuple):
             shape = shape[0]
 
         if use_numpy:
             data = TensorData(
                 *shape,
-                use_numpy=True,
                 numpy_data=np.random.default_rng().normal(0, 1, size=shape),
             )
             return Tensor(data=data)
@@ -224,7 +227,7 @@ class Tensor(object):
             if not result.grad.shape:
                 g = result.grad.item() * rhs.data.permute(*rhs_permutation)
             else:
-                
+
                 g = result.grad @ rhs.data.permute(*rhs_permutation)
             self.grad += g.unbroadcast(*self.shape)
 
