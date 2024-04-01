@@ -21,6 +21,7 @@ class Tensor(object):
         self.shape: tuple = data.shape
         self.data: TensorData = data
         self.use_numpy: bool = self.data.use_numpy
+        # issue here
         self.grad = TensorData(*self.shape, use_numpy=self.use_numpy)
 
         # Backpropagation compute graph
@@ -94,7 +95,7 @@ class Tensor(object):
 
     @property
     def numel(self) -> int:
-        return len(self.data._data)
+        return self.data.numel()
 
     def sum(self, dim: tuple | int = None, keepdims: bool = False) -> Tensor:
         """Return the sum of all values across dimensions"""
@@ -110,12 +111,12 @@ class Tensor(object):
     def mean(self, dim: tuple | int = None, keepdims: bool = False) -> Tensor:
         """Return the mean of all values across both dimensions."""
         result = Tensor(self.data.mean(dims=dim, keepdims=keepdims), children=(self,))
-        
+
         def _gradient() -> None:
             info(f"Gradient of mean. Shape: {self.shape}")
             # Calculate the number of elements in the mean
-            num_elements_in_mean = prod(self.shape) / prod(result.shape)
-            self.grad += (1/num_elements_in_mean) * result.grad 
+            num_elements_in_mean = self.numel / result.numel
+            self.grad += (1 / num_elements_in_mean) * result.grad
 
         result._gradient = _gradient
         return result
@@ -197,17 +198,41 @@ class Tensor(object):
 
         result = Tensor(self.data @ rhs.data, children=(self, rhs))
 
+        lhs_dims, rhs_dims = len(self.shape), len(rhs.shape)
+
+        self_permutation = None
+        if lhs_dims == 1:
+            self_permutation = (0,)
+        elif lhs_dims == 2:
+            self_permutation = (1, 0)
+        else:
+            self_permutation = tuple(range(lhs_dims - 2)) + (lhs_dims - 1, lhs_dims - 2)
+
+        rhs_permutation = None
+        if rhs_dims == 1:
+            rhs_permutation = (0,)
+        elif rhs_dims == 2:
+            rhs_permutation = (1, 0)
+        else:
+            rhs_permutation = tuple(range(rhs_dims - 2)) + (rhs_dims - 1, rhs_dims - 2)
+
         def _gradient() -> None:
-            # Instead of rhs.data.T, we should transpose only the last two dimensions because 
+            # Instead of rhs.data.T, we should transpose only the last two dimensions because
             # thats how we multiply with tensor shigher than two dimensions
             # We also have to unbroadcast to the last two dimensions because we multiply
-            rhs_permutation = tuple(range(len(rhs.shape)-2)) + (len(rhs.shape)-1,len(rhs.shape)-2)
-            self_permutation = tuple(range(len(self.shape)-2)) + (len(self.shape)-1,len(self.shape)-2)
             info(f"Gradient of Tensor multiplication (LHS). Shape: {self.shape}")
-            g = result.grad @ rhs.data.permute(*rhs_permutation)
+            if not result.grad.shape:
+                g = result.grad.item() * rhs.data.permute(*rhs_permutation)
+            else:
+                
+                g = result.grad @ rhs.data.permute(*rhs_permutation)
             self.grad += g.unbroadcast(*self.shape)
+
             info(f"Gradient of Tensor multiplication (RHS). Shape: {self.shape}")
-            g = self.data.permute(*self_permutation) @ result.grad
+            if not result.grad.shape:
+                g = self.data.permute(*self_permutation) * result.grad.item()
+            else:
+                g = self.data.permute(*self_permutation) @ result.grad
             rhs.grad += g.unbroadcast(*rhs.shape)
             # Why unbroadcast to rhs shape? and self.shape?
 

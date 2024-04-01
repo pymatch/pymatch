@@ -464,6 +464,9 @@ class TensorData(object):
             res = self._numpy_data.sum(axis=dims, keepdims=keepdims)
             return TensorData(*res.shape, use_numpy=True, numpy_data=res)
 
+        if self._item:
+            return TensorData(value=self._item)
+
         if not dims:
             # Handle case where dims is None. If None, all dimensions are reduced into a singleton tensor
             return TensorData(value=sum(td._item for td in self._data))
@@ -498,6 +501,10 @@ class TensorData(object):
         if self.use_numpy:
             res_mean = self._numpy_data.mean(axis=dims, keepdims=keepdims)
             return TensorData(*res_mean.shape, use_numpy=True, numpy_data=res_mean)
+
+        if self._item:
+            return TensorData(value=self._item)
+
         res_sum = self.sum(dims, keepdims)
         if not dims:
             return res_sum / self.numel()
@@ -539,7 +546,10 @@ class TensorData(object):
         self.__set(0.0)
 
     def numel(self) -> int:
-        return self._numpy_data.size() if self.use_numpy else len(self._data)
+        if self.use_numpy:
+            return self._numpy_data.size
+        else:
+            return len(self._data) if self._data else 1
 
     def relu(self) -> Union[TensorData, np.ndarray]:
         """Return a new TensorData object with the ReLU of each element."""
@@ -834,15 +844,18 @@ class TensorData(object):
                 use_numpy=True,
                 numpy_data=res,
             )
+        # Handle case where self or rhs is a singleton
+        if self._item or rhs._item:
+            raise ValueError("Both arguments to matmul need to be at least 1D")
+
         lhs = self
         lhs_shape, rhs_shape = self.shape, rhs.shape
         lhs_dims, rhs_dims = len(lhs_shape), len(rhs_shape)
 
         # If both tensors are 1-dimensional, the dot product (scalar) is returned.
         if lhs_dims == 1 and rhs_dims == 1:
-            if len(lhs._data) == len(rhs._data):
-                # dot product
-                return dot(self._data, rhs._data)
+            # dot will return a tensordata because _data is comprised of Tensordata objects.
+            return dot(self._data, rhs._data)
 
         # If both arguments are 2-dimensional, the matrix-matrix product is returned.
         elif lhs_dims == 2 and rhs_dims == 2:

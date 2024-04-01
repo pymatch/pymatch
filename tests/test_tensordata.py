@@ -226,8 +226,9 @@ class TestTensorDataTest(unittest.TestCase):
         product_tensor = match_tensor_1 @ match_tensor_2
 
         self.assertEqual(product_tensor.shape, ())
+        self.assertIsNone(product_tensor._data)
         self.assertEqual(product_tensor.item(), 204)
-        self.assertEqual(product_tensor._data, None)
+        
 
     def test_binary_operations(self):
         torch_tensor_low_dim_1 = torch.ones(2, 2)

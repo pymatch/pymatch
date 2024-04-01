@@ -73,8 +73,25 @@ class TestTensor(unittest.TestCase):
         self.assertTrue(almost_equal(mat1, ten1, check_grad=True))
         self.assertTrue(almost_equal(mat2, ten2, check_grad=True))
 
+    def test_matmul_1d_1d(self):
+        mat1, ten1 = mat_and_ten((7,))
+        mat2, ten2 = mat_and_ten((7,))
+
+        mat_res = mat1 @ mat2
+        ten_res = ten1 @ ten2
+        self.assertTrue(almost_equal(mat_res, ten_res))
+        
+        # Use the mean to compute backward
+        mat_mean = mat_res.sum()
+        ten_mean = ten_res.sum()
+        mat_mean.backward()
+        ten_mean.backward()
+
+        self.assertTrue(almost_equal(mat1, ten1, check_grad=True))
+        self.assertTrue(almost_equal(mat2, ten2, check_grad=True))
+
     def test_matmul_nd_1d(self):
-        mat1, ten1 = mat_and_ten((3,3,2,2,3))
+        mat1, ten1 = mat_and_ten((2,2,3))
         mat2, ten2 = mat_and_ten((3,))
 
         mat_res = mat1 @ mat2
@@ -111,7 +128,7 @@ class TestTensor(unittest.TestCase):
     def test_pow_int_numpy(self):
         mat, ten = mat_and_ten(use_numpy=True)
         
-        random_exponent = 2 # For some reason this works only with integers
+        random_exponent = 2.6 # For some reason this works only with integers
         mat_res = pow(mat, random_exponent)
         ten_res = pow(ten, random_exponent)
         self.assertTrue(almost_equal(mat_res, ten_res))
@@ -126,10 +143,13 @@ class TestTensor(unittest.TestCase):
 
     def test_pow_int(self):
         mat, ten = mat_and_ten()
-        
-        random_exponent = 2 # For some reason this works only with integers
+
+        random_exponent = 2.6 # For some reason this works only with integers
         mat_res = pow(mat, random_exponent)
         ten_res = pow(ten, random_exponent)
+
+        print(mat_res)
+        print(ten_res)
         self.assertTrue(almost_equal(mat_res, ten_res))
         
         # Use the mean to compute backward

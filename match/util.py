@@ -55,13 +55,15 @@ def get_common_broadcast_shape(shape1, shape2):
 
 def dot(l1: Iterable, l2: Iterable):
     """Compute the inner product of two iterable objects, a*b"""
+    if len(l1) != len(l2):
+        raise ValueError("Size of tensors do not match")
     return sum(i * j for i, j in zip(l1, l2))
 
 def matmul_2d(l1: list, shape1: tuple, l2: list, shape2: tuple) -> tuple:
     """Compute l1 @ l2"""
     # return the new list of data, and the new shape
     if len(shape1) != 2 or len(shape2) != 2 or shape1[-1] != shape2[0]:
-        raise ValueError("Inconsistent shapes for 2d matrix multiplication")
+        raise ValueError(f"Inconsistent shapes for 2d matrix multiplication: {shape1} @ {shape2}")
 
     result_shape = (shape1[0], shape2[1])
     result_data = [0] * (result_shape[0] * result_shape[1])
