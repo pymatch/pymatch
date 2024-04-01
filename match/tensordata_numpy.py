@@ -40,6 +40,7 @@ class TensorData(object):
         assert all(
             isinstance(dim, int) for dim in size
         ), f"Size {size} must be a variadict of only integers"
+        self.shape = size
         self._numpy_data = numpy_data
         self.__initialize_tensor_data(value)
 
@@ -126,7 +127,7 @@ class TensorData(object):
             dims = (dims,)
 
         res_mean = self._numpy_data.mean(axis=dims, keepdims=keepdims)
-        return TensorData(*res_mean.shape, use_numpy=True, numpy_data=res_mean)
+        return TensorData(*res_mean.shape, numpy_data=res_mean)
 
     def unbroadcast(self, *shape: int) -> TensorData:
         """Return a new TensorData unbroadcast from current shape to desired shape.
@@ -227,8 +228,6 @@ class TensorData(object):
     def __mul__(self, rhs: Union[float, int, TensorData]) -> TensorData:
         """Element-wise multiplication: self * rhs."""
         if isinstance(rhs, TensorData):
-            if not rhs.use_numpy:
-                raise TypeError("Incompatible TensorData Options")
             res = self._numpy_data * rhs._numpy_data
             return TensorData(
                 *res.shape,
