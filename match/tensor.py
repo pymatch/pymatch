@@ -14,9 +14,9 @@ from icecream import ic
 use_numpy = True
 
 if use_numpy:
-    from .tensordata import TensorData as TensorData
+    from .tensordata_numpy import TensorData
 else:
-    from .tensordata_numpy import TensorData as TensorData
+    from .tensordata import TensorData
 
 
 class Tensor(object):

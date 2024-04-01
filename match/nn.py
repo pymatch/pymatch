@@ -6,7 +6,7 @@ from typing import Optional
 import numpy as np
 
 import match
-from match import Tensor, TensorData
+from match import Tensor, TensorData, use_numpy
 from match.util import get_kernel_position_slices_conv2d
 
 from copy import deepcopy
@@ -65,13 +65,13 @@ class Module:
 class Linear(Module):
     """y = x W^T + b"""
 
-    def __init__(self, in_features, out_features, use_numpy=True) -> None:
+    def __init__(self, in_features, out_features) -> None:
         super().__init__()
         # Kaiming He initialization
-        self.W = Tensor.randn(out_features, in_features, use_numpy=use_numpy) * sqrt(
+        self.W = Tensor.randn(out_features, in_features) * sqrt(
             (2 / out_features) / 3
         )
-        self.b = Tensor.randn(out_features, 1, use_numpy=use_numpy) * sqrt(
+        self.b = Tensor.randn(out_features, 1) * sqrt(
             (2 / out_features) / 3
         )
 
@@ -87,7 +87,7 @@ class Conv2d(Module):
     def __create_tensordata_with_duplicate_values(
         self, x, kernel_positions, N
     ) -> TensorData:
-        if self.use_numpy:
+        if use_numpy:
             np_duplicate_values_array = np.array([])
             printed = False
             for kernel_position_slice in kernel_positions:
@@ -131,7 +131,6 @@ class Conv2d(Module):
                 )
             return TensorData(
                 *np_duplicate_values_array.shape,
-                use_numpy=True,
                 numpy_data=np_duplicate_values_array,
             )
 
@@ -296,7 +295,7 @@ class Conv2d(Module):
         self._single_kernel_shape = (self.in_channels,) + kernel_size
         # Each column will be a single kernel, and we have out_channel columns
         self._trainable_kernels: Tensor = match.randn(
-            prod(self._single_kernel_shape), self.out_channels, use_numpy=self.use_numpy
+            prod(self._single_kernel_shape), self.out_channels
         )
 
         print(
@@ -310,7 +309,7 @@ class Conv2d(Module):
         self.bias: bool = bias
         if bias:
             self._trainable_bias = match.randn(
-                self.out_channels, use_numpy=self.use_numpy
+                self.out_channels
             )
 
     def __initialize_position_variable(self, val: tuple | int):
@@ -327,7 +326,6 @@ class Conv2d(Module):
         groups: int = 1,
         bias: bool = False,
         padding_mode: str = "zeros",
-        use_numpy: bool = False,
     ) -> None:
         super().__init__()
         self.in_channels: int = in_channels
@@ -337,7 +335,6 @@ class Conv2d(Module):
         self.dilation: tuple | int = self.__initialize_position_variable(dilation)
         self.groups: int = groups
         self.padding_mode = "zeros"
-        self.use_numpy = use_numpy
         self.__initialize_kernels(kernel_size)
         self.__initialize_bias(bias)
 
@@ -345,7 +342,7 @@ class Conv2d(Module):
 class MultiheadAttention(Module):
     """Multi Head Self-Attention"""
 
-    def __init__(self, embed_dim: int, num_heads: int, use_numpy=True):
+    def __init__(self, embed_dim: int, num_heads: int):
         super().__init__()
         assert embed_dim % num_heads == 0, "embed_dim must be divisible by num_heads"
 
@@ -355,10 +352,10 @@ class MultiheadAttention(Module):
         self.d_head = embed_dim // num_heads
 
         # Initialize Query, Key, Value tensors for multihead attention.
-        self.query_weights = Linear(embed_dim, embed_dim, use_numpy=use_numpy)
-        self.key_weights = Linear(embed_dim, embed_dim, use_numpy=use_numpy)
-        self.value_weights = Linear(embed_dim, embed_dim, use_numpy=use_numpy)
-        self.concat_weights = Linear(embed_dim, embed_dim, use_numpy=use_numpy)
+        self.query_weights = Linear(embed_dim, embed_dim)
+        self.key_weights = Linear(embed_dim, embed_dim)
+        self.value_weights = Linear(embed_dim, embed_dim)
+        self.concat_weights = Linear(embed_dim, embed_dim)
 
         # Define softmax layer
         self.softmax = Softmax(dim=3)
@@ -428,7 +425,6 @@ class LayerNorm(Module):
         eps=1e-05,
         elementwise_affine=True,
         bias=True,
-        use_numpy: bool = True,
     ):
         super().__init__()
         if isinstance(normalized_shape, int):
@@ -443,11 +439,11 @@ class LayerNorm(Module):
 
         if elementwise_affine:
             self.weight: Tensor = Tensor(
-                data=TensorData(*normalized_shape, value=1, use_numpy=use_numpy)
+                data=TensorData(*normalized_shape, value=1)
             )  # γ
             if bias:
                 self.bias: Tensor = Tensor(
-                    data=TensorData(*normalized_shape, value=0, use_numpy=use_numpy)
+                    data=TensorData(*normalized_shape, value=0)
                 )  # β
 
     def forward(self, x: Tensor):
@@ -506,24 +502,22 @@ class TransformerDecoderLayer(Module):
         dim_feedforward: int = 2048,
         dropout: float = 0.1,
         layer_norm_eps: float = 1e-05,
-        use_numpy=True,
     ):
         super().__init__()
         self.d_model = d_model
         self.num_heads = nhead
-        self.use_numpy = use_numpy
 
         self.self_attention = MultiheadAttention(
-            embed_dim=d_model, num_heads=nhead, use_numpy=use_numpy
+            embed_dim=d_model, num_heads=nhead
         )
         self.feed_forward = PositionWiseFeedForward(
-            d_model, dim_feedforward, use_numpy=use_numpy
+            d_model, dim_feedforward
         )
         self.first_layer_norm = LayerNorm(
-            normalized_shape=d_model, eps=layer_norm_eps, use_numpy=use_numpy
+            normalized_shape=d_model, eps=layer_norm_eps
         )
         self.second_layer_norm = LayerNorm(
-            normalized_shape=d_model, eps=layer_norm_eps, use_numpy=use_numpy
+            normalized_shape=d_model, eps=layer_norm_eps
         )
 
     def forward(self, x: Tensor, mask: Optional[Tensor]) -> Tensor:
@@ -554,10 +548,10 @@ class PositionalEncoding(Module): ...
 class PositionWiseFeedForward(Module):
     "Implements FFN equation."
 
-    def __init__(self, d_model: int, ff_dim: int, use_numpy: bool = True):
+    def __init__(self, d_model: int, ff_dim: int):
         super().__init__()
-        self.w1 = Linear(d_model, ff_dim, use_numpy=use_numpy)
-        self.w2 = Linear(ff_dim, d_model, use_numpy=use_numpy)
+        self.w1 = Linear(d_model, ff_dim)
+        self.w2 = Linear(ff_dim, d_model)
 
     def forward(self, x: Tensor) -> Tensor:
         # Apply first linear transformation
@@ -580,7 +574,6 @@ class GPT2(Module):
         decoder_layer: TransformerDecoderLayer,
         num_layers: int,
         norm: Module = None,
-        use_numpy: bool = True,
     ):
         super().__init__()
         self.num_layers = num_layers
