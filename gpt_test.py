@@ -1,8 +1,7 @@
 import match
 
-use_numpy = True
-embed_dim = 10
-num_heads = 5
+embed_dim = 64
+num_heads = 8
 x = match.randn(16, 9, embed_dim, generator=lambda: 1)
 
 decoder = match.nn.TransformerDecoderLayer(embed_dim, num_heads, 128)

@@ -225,10 +225,23 @@ class Tensor(object):
             # We also have to unbroadcast to the last two dimensions because we multiply
             info(f"Gradient of Tensor multiplication (LHS). Shape: {self.shape}")
             if not result.grad.shape:
-                g = result.grad.item() * rhs.data.permute(*rhs_permutation)
+                # g = result.grad.item() * rhs.data.permute(*rhs_permutation)
+                if rhs_dims == 1:
+                    # turn (3,) into (1,3).
+                    # LHS if singleton to no need to reshape anything.
+                    g = result.grad.item() * rhs.data.reshape((1,rhs.shape[0]))
+                else:
+                    g = result.grad.item() * rhs.data.permute(*rhs_permutation) 
             else:
+                # g = result.grad @ rhs.data.permute(*rhs_permutation)
+                if rhs_dims == 1:
+                    # for RHS: turn (3,) into (1,3)
+                    # for LHS: turn (2,2) into (2,2,1)
+                    g = result.grad.reshape(result.shape + (1,)) @ rhs.data.reshape((1,rhs.shape[0]))
+                else:
+                    g = result.grad @ rhs.data.permute(*rhs_permutation) 
+                
 
-                g = result.grad @ rhs.data.permute(*rhs_permutation)
             self.grad += g.unbroadcast(*self.shape)
 
             info(f"Gradient of Tensor multiplication (RHS). Shape: {self.shape}")
