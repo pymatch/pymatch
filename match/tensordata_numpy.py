@@ -40,14 +40,13 @@ class TensorData(object):
         assert all(
             isinstance(dim, int) for dim in size
         ), f"Size {size} must be a variadict of only integers"
-        self.shape = size
         self._numpy_data = numpy_data
-        self.__initialize_tensor_data(value)
-
-    def __initialize_tensor_data(self, value) -> None:
-        """Helper method that initializes all the values in the TensorData object."""
         if self._numpy_data is None:
-            self._numpy_data: np.ndarray = np.full(self.shape, value)
+            self._numpy_data: np.ndarray = np.full(size, value)
+
+    @property
+    def shape(self):
+        return self._numpy_data.shape
 
     def item(self) -> Union[int, float]:
         """Returns the item of a singleton, or single element TensorData object.
@@ -134,10 +133,12 @@ class TensorData(object):
 
         Reference to this: https://mostafa-samir.github.io/auto-diff-pt2/#unbroadcasting-adjoints
         """
+        print("shape", shape)
         # TODO(SAM): Change to shallow copy.
         correct_adjoint = self
 
         if self.shape != shape:
+            print(self.shape, shape)
             dim_diff = abs(len(self.shape) - len(shape))
             if dim_diff:  # != 0
                 summation_dims = tuple(range(dim_diff))
@@ -151,6 +152,7 @@ class TensorData(object):
                 correct_adjoint = correct_adjoint.sum(
                     dims=originally_ones, keepdims=True
                 )
+        print("new shape", correct_adjoint.shape)
 
         return correct_adjoint
 
