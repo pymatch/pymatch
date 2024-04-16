@@ -9,14 +9,19 @@ from operator import add, ge, gt, le, lt, mul, pow
 from math import exp, ceil, prod
 from random import gauss
 
+import numpy as np
+
 
 class Tensor(object):
-    def __init__(self, data: TensorData, children: tuple = ()) -> None:
+    def __init__(
+        self, data: TensorData, children: tuple = ()
+    ) -> None:
         """A Tensor object that tracks computations for computing gradients."""
-        super().__init__()
-        self.shape = data.shape
-        self.data = data
-        self.grad = TensorData(*self.shape)
+        # super().__init__()
+        self.shape: tuple = data.shape
+        self.data: TensorData = data
+        self.use_numpy: bool = self.data.use_numpy
+        self.grad = TensorData(*self.shape, use_numpy=self.use_numpy)
 
         # Backpropagation compute graph
         self._gradient = lambda: None
@@ -28,9 +33,19 @@ class Tensor(object):
     def __str__(self) -> str:
         return self.__repr__()
 
-    def randn(*shape, generator=lambda: gauss(0, 1)) -> Tensor:
+    def randn(*shape, generator=lambda: gauss(0, 1), use_numpy=False) -> Tensor:
         if isinstance(shape[0], tuple):
-            shape = shape(0)
+            shape = shape[0]
+
+        if use_numpy:
+            rng = np.random.default_rng(seed=47)
+            data = TensorData(
+                *shape,
+                use_numpy=True,
+                numpy_data=rng.random(shape),
+            )
+            return Tensor(data=data)
+
         if not shape:
             return Tensor(TensorData(value=generator()))
 
@@ -77,37 +92,36 @@ class Tensor(object):
 
         result._gradient = _gradient
         return result
-    
+
     @property
     def numel(self) -> int:
         return len(self.data._data)
 
     def sum(self) -> Tensor:
         """Return the sum of all values across both dimensions."""
-        result = Tensor(TensorData(value=self.data.sum()), children=(self,))
+        result = Tensor(TensorData(value=self.data.sum(), use_numpy=self.use_numpy), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of summation. Shape: {self.shape}")
-            self.grad += TensorData(*self.shape, value=result.data.item())
+            self.grad += TensorData(*self.shape, value=result.data.item(), use_numpy=self.use_numpy)
 
         result._gradient = _gradient
         return result
 
     def mean(self) -> Tensor:
         """Return the mean of all values across both dimensions."""
-        result = Tensor(TensorData(value=self.data.mean()), children=(self,))
+        result = Tensor(TensorData(value=self.data.mean(), use_numpy=self.use_numpy), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of mean. Shape: {self.shape}")
-            self.grad += TensorData(*self.shape, value=result.data.item() / self.numel)
-
+            self.grad += TensorData(*self.shape, value=result.data.item() / self.numel, use_numpy=self.use_numpy)
 
         result._gradient = _gradient
         return result
 
     def relu(self) -> Tensor:
         """Element-wise rectified linear unit (ReLU)."""
-        result = Tensor(self.data.relu(), children=(self,))
+        result = Tensor(self.data.relu(), children=(self,), use_numpy = self.data.use_numpy)
 
         def _gradient() -> None:
             info(f"Gradient of ReLU. Shape: {self.shape}")
@@ -234,12 +248,12 @@ class Tensor(object):
     def reshape(self, *shape: int) -> Tensor:
         """Helper method to reshape and return a new TensorData object without changing the data"""
         # The reshape method can accept either a variadict or a tuple.
-        result: Tensor = Tensor(self.data.reshape(shape), children=(self,))
+        result: Tensor = Tensor(self.data.reshape(tuple(shape)), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of reshape. Shape: {self.shape}")
             # Permuting the result with the same parameter (reverse)
-            self.grad += result.grad.reshape(*self.shape)
+            self.grad += result.grad.reshape(self.shape)
 
         result._gradient = _gradient
         return result

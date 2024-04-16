@@ -6,6 +6,7 @@ from copy import deepcopy
 from typing import Callable, Union, Iterable
 from collections import Counter
 from itertools import zip_longest
+import numpy as np
 
 Number: type = Union[float, int]
 
@@ -19,7 +20,7 @@ def relu(n: Number) -> Number:
     return max(0, n)
 
 
-def sigmoid(n: Number) -> float:
+def sigmoid(n: Union[Number, np.ndarray]) -> float:
     return 1.0 / (1.0 + exp(-1 * n))
 
 
@@ -56,8 +57,7 @@ def dot(l1: Iterable, l2: Iterable):
     """Compute the inner product of two iterable objects, a*b"""
     return sum(i * j for i, j in zip(l1, l2))
 
-
-def matmul_2d(l1: Iterable, shape1: tuple, l2: Iterable, shape2: tuple) -> tuple:
+def matmul_2d(l1: list, shape1: tuple, l2: list, shape2: tuple) -> tuple:
     """Compute l1 @ l2"""
     # return the new list of data, and the new shape
     if len(shape1) != 2 or len(shape2) != 2 or shape1[-1] != shape2[0]:
@@ -67,12 +67,12 @@ def matmul_2d(l1: Iterable, shape1: tuple, l2: Iterable, shape2: tuple) -> tuple
     result_data = [0] * (result_shape[0] * result_shape[1])
 
     for i in range(result_shape[0]):
+        p = i * shape1[1]
+        q = i * result_shape[1]
         for j in range(result_shape[1]):
             # Compute the dot product of the i-th row of l1 and the j-th column of l2
-            dot_product = 0
-            for k in range(shape1[1]):
-                dot_product += l1[i * shape1[1] + k] * l2[k * shape2[1] + j]
-            result_data[i * result_shape[1] + j] = dot_product
+            dot_product = sum(l1[p + k] * l2[k * shape2[1] + j] for k in range(shape1[1]))
+            result_data[q + j] = dot_product
 
     return result_shape, result_data
 

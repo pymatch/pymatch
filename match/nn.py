@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from math import sqrt, prod
 
+import numpy as np
+
 import match
 from match import Tensor, TensorData
 from match.util import get_kernel_position_slices_conv2d
@@ -75,8 +77,99 @@ class Linear(Module):
 
 
 class Conv2d(Module):
+    def __create_tensordata_with_duplicate_values(
+        self, x, kernel_positions, N
+    ) -> TensorData:
+        if self.use_numpy:
+            np_duplicate_values_array = np.array([])
+            printed = False
+            for kernel_position_slice in kernel_positions:
+                # Grab the sub tensor
+                sub_tensordata = x.data[kernel_position_slice]
+                # Represent the data as a row vector, we can pass this by value
+                sub_tensordata_row_vector = sub_tensordata._numpy_data.flatten()
+                np_duplicate_values_array = np.append(np_duplicate_values_array, sub_tensordata_row_vector)
+                if not printed:
+                    print(
+                        f"Length of single subtensor_data: {len(sub_tensordata_row_vector)} ... this should be equal to {prod(self._single_kernel_shape)}"
+                    )
+                    printed = True
+
+            print(
+                f"Total number of elements in duplicate tensor: {len(np_duplicate_values_array)}"
+            )
+
+            if len(x.shape) == 4:
+                np_duplicate_values_array = np_duplicate_values_array.reshape(
+                    (
+                        N,
+                        int(len(kernel_positions) / N),
+                        prod(self._single_kernel_shape),
+                    )  # Divide by N because kernel positions includes those for all N instances in the batch
+                )
+                print(
+                    f"Reshaping to {(N,int(len(kernel_positions) / N),prod(self._single_kernel_shape))}"
+                )
+            else:
+                np_duplicate_values_array = np_duplicate_values_array.reshape(
+                    (
+                        len(kernel_positions),
+                        prod(self._single_kernel_shape),
+                    )  # Only single batch so N=1
+                )
+                print(
+                    f"Reshaping to {(len(kernel_positions),prod(self._single_kernel_shape))}"
+                )
+            return TensorData(
+                *np_duplicate_values_array.shape,
+                use_numpy=True,
+                numpy_data=np_duplicate_values_array,
+            )
+
+        temp_tensordata_with_duplicate_values = TensorData(0)
+        # This assumes that the kernel positions are in sorted order of rows then columns.
+        printed = False
+        for kernel_position_slice in kernel_positions:
+            # Grab the sub tensor
+            sub_tensordata = x.data[kernel_position_slice]
+            # Represent the data as a row vector, we can pass this by value
+            temp_tensordata_with_duplicate_values._data += sub_tensordata._data
+            if not printed:
+                print(
+                    f"Length of single subtensor_data: {len(sub_tensordata._data)} ... this should be equal to {prod(self._single_kernel_shape)}"
+                )
+                printed = True
+
+        print(
+            f"Total number of elements in duplicate tensor: {len(temp_tensordata_with_duplicate_values._data)}"
+        )
+
+        if len(x.shape) == 4:
+            temp_tensordata_with_duplicate_values.reshape_(
+                (
+                    N,
+                    int(len(kernel_positions) / N),
+                    prod(self._single_kernel_shape),
+                )  # Divide by N because kernel positions includes those for all N instances in the batch
+            )
+            print(
+                f"Reshaping to {(N,int(len(kernel_positions) / N),prod(self._single_kernel_shape))}"
+            )
+        else:
+            temp_tensordata_with_duplicate_values.reshape_(
+                (
+                    len(kernel_positions),
+                    prod(self._single_kernel_shape),
+                )  # Only single batch so N=1
+            )
+            print(
+                f"Reshaping to {(len(kernel_positions),prod(self._single_kernel_shape))}"
+            )
+        return temp_tensordata_with_duplicate_values
+
     def forward(self, x: Tensor) -> Tensor:
         # Assume tensor is shape (N, in_channels, H, W) or (in_chnnels, H W)
+
         N = 1
         if len(x.shape) == 4:
             N, _, height_in, width_in = x.shape
@@ -132,46 +225,9 @@ class Conv2d(Module):
             print(kernel_positions[i])
         print()
 
-        temp_tensordata_with_duplicate_values = TensorData(0)
-
-        # This assumes that the kernel positions are in sorted order of rows then columns.
-        printed = False
-        for kernel_position_slice in kernel_positions:
-            # Grab the sub tensor
-            sub_tensordata = x.data[kernel_position_slice]
-            # Represent the data as a row vector, we can pass this by value
-            temp_tensordata_with_duplicate_values._data += sub_tensordata._data
-            if not printed:
-                print(
-                    f"Length of single subtensor_data: {len(sub_tensordata._data)} ... this should be equal to {prod(self._single_kernel_shape)}"
-                )
-                printed = True
-
-        print(
-            f"Total number of elements in duplicate tensor: {len(temp_tensordata_with_duplicate_values._data)}"
+        temp_tensordata_with_duplicate_values = (
+            self.__create_tensordata_with_duplicate_values(x, kernel_positions, N)
         )
-
-        if len(x.shape) == 4:
-            temp_tensordata_with_duplicate_values.reshape_(
-                (
-                    N,
-                    int(len(kernel_positions) / N),
-                    prod(self._single_kernel_shape),
-                )  # Divide by N because kernel positions includes those for all N instances in the batch
-            )
-            print(
-                f"Reshaping to {(N,int(len(kernel_positions) / N),prod(self._single_kernel_shape))}"
-            )
-        else:
-            temp_tensordata_with_duplicate_values.reshape_(
-                (
-                    len(kernel_positions),
-                    prod(self._single_kernel_shape),
-                )  # Only single batch so N=1
-            )
-            print(
-                f"Reshaping to {(len(kernel_positions),prod(self._single_kernel_shape))}"
-            )
 
         temp_tensor_with_duplicate_values = Tensor(
             data=temp_tensordata_with_duplicate_values
@@ -231,7 +287,7 @@ class Conv2d(Module):
         self._single_kernel_shape = (self.in_channels,) + kernel_size
         # Each column will be a single kernel, and we have out_channel columns
         self._trainable_kernels: Tensor = match.randn(
-            prod(self._single_kernel_shape), self.out_channels
+            prod(self._single_kernel_shape), self.out_channels, use_numpy=self.use_numpy
         )
 
         print(
@@ -244,7 +300,9 @@ class Conv2d(Module):
     def __initialize_bias(self, bias: bool) -> None:
         self.bias: bool = bias
         if bias:
-            self._trainable_bias = match.randn(self.out_channels)
+            self._trainable_bias = match.randn(
+                self.out_channels, use_numpy=self.use_numpy
+            )
 
     def __initialize_position_variable(self, val: tuple | int):
         return val if isinstance(val, tuple) else (val, val)
@@ -260,6 +318,7 @@ class Conv2d(Module):
         groups: int = 1,
         bias: bool = False,
         padding_mode: str = "zeros",
+        use_numpy: bool = False,
     ) -> None:
         self.in_channels: int = in_channels
         self.out_channels: int = out_channels
@@ -268,6 +327,7 @@ class Conv2d(Module):
         self.dilation: tuple | int = self.__initialize_position_variable(dilation)
         self.groups: int = groups
         self.padding_mode = "zeros"
+        self.use_numpy = use_numpy
         self.__initialize_kernels(kernel_size)
         self.__initialize_bias(bias)
 
