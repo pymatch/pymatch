@@ -23,7 +23,6 @@ class Tensor(object):
     def __init__(self, data: TensorData, children: tuple = ()) -> None:
         """A Tensor object that tracks computations for computing gradients."""
         # super().__init__()
-        self.shape: tuple = data.shape
         self.data: TensorData = data
         # issue here
         self.grad = TensorData(*self.shape)
@@ -99,6 +98,10 @@ class Tensor(object):
     @property
     def numel(self) -> int:
         return self.data.numel()
+    
+    @property
+    def shape(self) -> int:
+        return self.data.shape
 
     def sum(self, dim: tuple | int = None, keepdims: bool = False) -> Tensor:
         """Return the sum of all values across dimensions"""
@@ -198,59 +201,50 @@ class Tensor(object):
     def __matmul__(self, rhs: Tensor) -> Tensor:
         """Tensor multiplication: self @ rhs."""
         assert isinstance(rhs, Tensor), f"Wrong type: {type(rhs)}"
-
-        result = Tensor(self.data @ rhs.data, children=(self, rhs))
-
         lhs_dims, rhs_dims = len(self.shape), len(rhs.shape)
+        # Go through each of the cases
 
-        self_permutation = None
-        if lhs_dims == 1:
-            self_permutation = (0,)
-        elif lhs_dims == 2:
-            self_permutation = (1, 0)
-        else:
+        if lhs_dims == 1 and rhs_dims == 1:
+            # Return the dot product, has gradient logic encoded
+            return (self * rhs).sum()         
+        
+        result = Tensor(self.data @ rhs.data, children=(self, rhs))
+        if lhs_dims >= 2 and rhs_dims >= 2: # Like normal
             self_permutation = tuple(range(lhs_dims - 2)) + (lhs_dims - 1, lhs_dims - 2)
-
-        rhs_permutation = None
-        if rhs_dims == 1:
-            rhs_permutation = (0,)
-        elif rhs_dims == 2:
-            rhs_permutation = (1, 0)
-        else:
             rhs_permutation = tuple(range(rhs_dims - 2)) + (rhs_dims - 1, rhs_dims - 2)
-
-        def _gradient() -> None:
-            # Instead of rhs.data.T, we should transpose only the last two dimensions because
-            # thats how we multiply with tensor shigher than two dimensions
-            # We also have to unbroadcast to the last two dimensions because we multiply
-            info(f"Gradient of Tensor multiplication (LHS). Shape: {self.shape}")
-            if not result.grad.shape:
-                # g = result.grad.item() * rhs.data.permute(*rhs_permutation)
-                if rhs_dims == 1:
-                    # turn (3,) into (1,3).
-                    # LHS if singleton to no need to reshape anything.
-                    g = result.grad.item() * rhs.data.reshape((1,rhs.shape[0]))
-                else:
-                    g = result.grad.item() * rhs.data.permute(*rhs_permutation) 
-            else:
-                # g = result.grad @ rhs.data.permute(*rhs_permutation)
-                if rhs_dims == 1:
-                    # for RHS: turn (3,) into (1,3)
-                    # for LHS: turn (2,2) into (2,2,1)
-                    g = result.grad.reshape(result.shape + (1,)) @ rhs.data.reshape((1,rhs.shape[0]))
-                else:
-                    g = result.grad @ rhs.data.permute(*rhs_permutation) 
-                
-
-            self.grad += g.unbroadcast(*self.shape)
-
-            info(f"Gradient of Tensor multiplication (RHS). Shape: {self.shape}")
-            if not result.grad.shape:
-                g = self.data.permute(*self_permutation) * result.grad.item()
-            else:
+            def _gradient() -> None:
+                info(f"Gradient of Tensor multiplication (LHS). Shape: {self.shape}")
+                g = result.grad @ rhs.data.permute(*rhs_permutation)
+                self.grad += g.unbroadcast(*self.shape)
+                info(f"Gradient of Tensor multiplication (RHS). Shape: {self.shape}")
                 g = self.data.permute(*self_permutation) @ result.grad
-            rhs.grad += g.unbroadcast(*rhs.shape)
-            # Why unbroadcast to rhs shape? and self.shape?
+                rhs.grad += g.unbroadcast(*rhs.shape)
+
+        elif lhs_dims == 1 and rhs_dims >= 2:
+            rhs_permutation = tuple(range(rhs_dims - 2)) + (rhs_dims - 1, rhs_dims - 2)
+            def _gradient() -> None:
+                info(f"Gradient of Tensor multiplication (LHS). Shape: {self.shape}")
+                g = result.grad.reshape(result.shape[:-1] + (1,) + result.shape[-1:]) @ rhs.data.permute(*rhs_permutation)
+                # The broadcast will take of the 1 in the second last position
+                self.grad += g.unbroadcast(*self.shape)
+                info(f"Gradient of Tensor multiplication (RHS). Shape: {self.shape}")
+                g = self.data.reshape((self.shape[0], 1)) @ result.grad.reshape(result.shape[:-1] + (1,) + result.shape[-1:])
+                rhs.grad += g.unbroadcast(*rhs.shape)
+
+        elif lhs_dims >= 2 and rhs_dims == 1:
+            # If the RHS has dim 1, rhs is technically a column vector
+            # append a 1 to its dimension (4,) -> (4,1)
+            self_permutation = tuple(range(lhs_dims - 2)) + (lhs_dims - 1, lhs_dims - 2)
+            def _gradient() -> None:
+                info(f"Gradient of Tensor multiplication (LHS). Shape: {self.shape}")
+                g = result.grad.reshape(result.shape + (1,)) @ rhs.data.reshape((1,rhs.shape[0]))
+                self.grad += g.unbroadcast(*self.shape)
+                info(f"Gradient of Tensor multiplication (RHS). Shape: {self.shape}")
+                # Add a one to result grad dimension
+                g = self.data.permute(*self_permutation) @ result.grad.reshape(result.shape + (1,))
+                # Then remove the last "1" dimension it after multiplication
+                g.reshape_(g.shape[:-1])
+                rhs.grad += g.unbroadcast(*rhs.shape)
 
         result._gradient = _gradient
         return result

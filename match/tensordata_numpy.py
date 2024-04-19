@@ -120,7 +120,7 @@ class TensorData(object):
         res = self._numpy_data.sum(axis=dims, keepdims=keepdims)
         return TensorData(*res.shape, numpy_data=res)
 
-    def mean(self, dims: tuple | int = None, keepdims: bool = None) -> TensorData:
+    def mean(self, dims: tuple | int = None, keepdims: bool = False) -> TensorData:
         """Compute the mean of all values in the tensor."""
         if isinstance(dims, int):
             dims = (dims,)
@@ -141,8 +141,10 @@ class TensorData(object):
             print(self.shape, shape)
             dim_diff = abs(len(self.shape) - len(shape))
             if dim_diff:  # != 0
+            
                 summation_dims = tuple(range(dim_diff))
                 correct_adjoint = self.sum(dims=summation_dims)
+         
             # If the shape was (3,4,5,6) and we want to unbroadcast it to (3,4,1,1), we need to sum the 2nd and 3rd dimension with keepdim True
 
             originally_ones = tuple(
@@ -153,7 +155,6 @@ class TensorData(object):
                     dims=originally_ones, keepdims=True
                 )
         print("new shape", correct_adjoint.shape)
-
         return correct_adjoint
 
     def ones_(self) -> None:
