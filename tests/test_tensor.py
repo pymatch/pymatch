@@ -56,6 +56,51 @@ def mat_and_ten(shape: tuple[int] = None):
 
 
 class TestTensor(unittest.TestCase):
+    def test_exp(self):
+        mat1, ten1 = mat_and_ten((5,4,3))
+
+        mat_res = mat1.exp()
+        ten_res = ten1.exp()
+        self.assertTrue(almost_equal(mat_res, ten_res))
+        
+        # Use the mean to compute backward
+        mat_mean = mat_res.sum()
+        ten_mean = ten_res.sum()
+        mat_mean.backward()
+        ten_mean.backward()
+
+        self.assertTrue(almost_equal(mat1, ten1, check_grad=True))
+    
+    def test_permute(self):
+        mat1, ten1 = mat_and_ten((5,4,3))
+
+        mat_res = mat1.permute(0,2,1)
+        ten_res = ten1.permute((0,2,1))
+        self.assertTrue(almost_equal(mat_res, ten_res))
+        
+        # Use the mean to compute backward
+        mat_mean = mat_res.sum()
+        ten_mean = ten_res.sum()
+        mat_mean.backward()
+        ten_mean.backward()
+
+        self.assertTrue(almost_equal(mat1, ten1, check_grad=True))
+
+    def test_reshape(self):
+        mat1, ten1 = mat_and_ten((5,4,3))
+
+        mat_res = mat1.reshape(6,5,2)
+        ten_res = ten1.reshape((6,5,2))
+        self.assertTrue(almost_equal(mat_res, ten_res))
+        
+        # Use the mean to compute backward
+        mat_mean = mat_res.sum()
+        ten_mean = ten_res.sum()
+        mat_mean.backward()
+        ten_mean.backward()
+
+        self.assertTrue(almost_equal(mat1, ten1, check_grad=True))
+
     def test_matmul_1d_1d(self):
         mat1, ten1 = mat_and_ten((7,))
         mat2, ten2 = mat_and_ten((7,))
