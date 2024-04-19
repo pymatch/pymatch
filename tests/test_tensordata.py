@@ -28,24 +28,86 @@ def same_references(match_tensor1: TensorData, match_tensor2: TensorData):
 
 
 class TestTensorDataTest(unittest.TestCase):
-    def test_sum_along_axis(self):
+    def test_mean_nodim(self):
+        torch_tensor = torch.arange(24).reshape(2, 4, 3).float()
+
+        match_tensor = TensorData(2, 4, 3)
+        match_tensor._data = [TensorData(value=i) for i in range(24)]
+
+        self.assertEqual(match_tensor.mean().item(), torch_tensor.mean().item())
+
+    def test_mean_keepdim(self):
+        torch_tensor = torch.arange(24).reshape(2, 4, 3).float()
+
+        match_tensor = TensorData(2, 4, 3)
+        match_tensor._data = [TensorData(value=i) for i in range(24)]
+
+        self.assertTrue(
+            almost_equal(
+                match_tensor.mean((1, 2), keepdims=True),
+                torch_tensor.mean((1, 2), keepdim=True),
+            )
+        )
+
+    def test_mean(self):
+        torch_tensor = torch.arange(24).reshape(2, 4, 3).float()
+
+        match_tensor = TensorData(2, 4, 3)
+        match_tensor._data = [TensorData(value=i) for i in range(24)]
+
+        self.assertTrue(almost_equal(match_tensor.mean((0,)), torch_tensor.mean((0,))))
+
+    def test_sum_nodim(self):
+        torch_tensor = torch.arange(24).reshape(2, 4, 3)
+
+        match_tensor = TensorData(2, 4, 3)
+        match_tensor._data = [TensorData(value=i) for i in range(24)]
+
+        self.assertEqual(match_tensor.sum().item(), torch_tensor.sum().item())
+
+    def test_sum_2(self):
+        torch_tensor = torch.arange(48).reshape(2, 4, 3, 2)
+
+        match_tensor = TensorData(2, 4, 3, 2)
+        match_tensor._data = [TensorData(value=i) for i in range(48)]
+
+        self.assertTrue(
+            almost_equal(match_tensor.sum((1, 2)), torch_tensor.sum((1, 2)))
+        )
+
+    def test_sum_keepdim_2(self):
+        torch_tensor = torch.arange(48).reshape(2, 4, 3, 2)
+
+        match_tensor = TensorData(2, 4, 3, 2)
+        match_tensor._data = [TensorData(value=i) for i in range(48)]
+
+        self.assertTrue(
+            almost_equal(
+                match_tensor.sum((1, 2), keepdims=True),
+                torch_tensor.sum((1, 2), keepdims=True),
+            )
+        )
+
+    def test_sum_keepdim(self):
         torch_tensor = torch.arange(24).reshape(2, 4, 3)
 
         match_tensor = TensorData(2, 4, 3)
         match_tensor._data = [TensorData(value=i) for i in range(24)]
 
         self.assertTrue(
-            almost_equal(match_tensor.sum_along_axes((0,)), torch_tensor.sum((0,)))
-        )
-        self.assertTrue(
-            almost_equal(match_tensor.sum_along_axes((0, 1)), torch_tensor.sum((0, 1)))
-        )
-        self.assertTrue(
             almost_equal(
-                match_tensor.sum_along_axes((1, 2), keepdims=True),
+                match_tensor.sum((1, 2), keepdims=True),
                 torch_tensor.sum((1, 2), keepdim=True),
             )
         )
+
+    def test_sum(self):
+        torch_tensor = torch.arange(24).reshape(2, 4, 3)
+
+        match_tensor = TensorData(2, 4, 3)
+        match_tensor._data = [TensorData(value=i) for i in range(24)]
+
+        self.assertTrue(almost_equal(match_tensor.sum((0,)), torch_tensor.sum((0,))))
 
     def test_matmul_nd_1d(self):
         torch_tensor_1 = torch.arange(24).reshape(2, 4, 3)
@@ -164,8 +226,9 @@ class TestTensorDataTest(unittest.TestCase):
         product_tensor = match_tensor_1 @ match_tensor_2
 
         self.assertEqual(product_tensor.shape, ())
+        self.assertIsNone(product_tensor._data)
         self.assertEqual(product_tensor.item(), 204)
-        self.assertEqual(product_tensor._data, None)
+        
 
     def test_binary_operations(self):
         torch_tensor_low_dim_1 = torch.ones(2, 2)
@@ -253,7 +316,7 @@ class TestTensorDataTest(unittest.TestCase):
         # make the match tensor
         match_tensor = TensorData(value=47)
         # reshape the match tensor
-        match_tensor_reshaped = match_tensor.reshape(1)
+        match_tensor_reshaped = match_tensor.reshape((1,))
 
         self.assertEqual(match_tensor.shape, ())
         self.assertEqual(match_tensor.item(), 47)
@@ -270,13 +333,13 @@ class TestTensorDataTest(unittest.TestCase):
 
     def test_reshape_failure(self):
         match_tensor = TensorData(2, 3, 4)
-        self.assertRaises(RuntimeError, lambda: match_tensor.reshape(5, 5, 5))
+        self.assertRaises(RuntimeError, lambda: match_tensor.reshape((5, 5, 5)))
 
     def test_reshape(self):
         # make the match tensor
         match_tensor = TensorData(2, 3, 4)
         # reshape the match tensor
-        match_tensor_reshaped = match_tensor.reshape(4, 3, 2)
+        match_tensor_reshaped = match_tensor.reshape((4, 3, 2))
 
         self.assertEqual(match_tensor.shape, (2, 3, 4))
         self.assertEqual(match_tensor_reshaped.shape, (4, 3, 2))

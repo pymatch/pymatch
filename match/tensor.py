@@ -3,13 +3,21 @@ from __future__ import annotations
 from copy import deepcopy
 from logging import info
 
-from .tensordata import TensorData
-
 from operator import add, ge, gt, le, lt, mul, pow
 from math import exp, ceil, prod
 from random import gauss
 
 import numpy as np
+
+
+from icecream import ic
+
+use_numpy = True
+
+if use_numpy:
+    from .tensordata_numpy import TensorData
+else:
+    from .tensordata import TensorData
 
 
 class Tensor(object):
@@ -18,10 +26,9 @@ class Tensor(object):
     ) -> None:
         """A Tensor object that tracks computations for computing gradients."""
         # super().__init__()
-        self.shape: tuple = data.shape
         self.data: TensorData = data
-        self.use_numpy: bool = self.data.use_numpy
-        self.grad = TensorData(*self.shape, use_numpy=self.use_numpy)
+        # issue here
+        self.grad = TensorData(*self.shape)
 
         # Backpropagation compute graph
         self._gradient = lambda: None
@@ -38,11 +45,9 @@ class Tensor(object):
             shape = shape[0]
 
         if use_numpy:
-            rng = np.random.default_rng(seed=47)
             data = TensorData(
                 *shape,
-                use_numpy=True,
-                numpy_data=rng.random(shape),
+                numpy_data=np.random.default_rng().normal(0, 1, size=shape),
             )
             return Tensor(data=data)
 
@@ -95,26 +100,32 @@ class Tensor(object):
 
     @property
     def numel(self) -> int:
-        return len(self.data._data)
+        return self.data.numel()
+    
+    @property
+    def shape(self) -> int:
+        return self.data.shape
 
-    def sum(self) -> Tensor:
-        """Return the sum of all values across both dimensions."""
-        result = Tensor(TensorData(value=self.data.sum(), use_numpy=self.use_numpy), children=(self,))
+    def sum(self, dim: tuple | int = None, keepdims: bool = False) -> Tensor:
+        """Return the sum of all values across dimensions"""
+        result = Tensor(self.data.sum(dims=dim, keepdims=keepdims), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of summation. Shape: {self.shape}")
-            self.grad += TensorData(*self.shape, value=result.data.item(), use_numpy=self.use_numpy)
+            self.grad += 1 * result.grad
 
         result._gradient = _gradient
         return result
 
-    def mean(self) -> Tensor:
+    def mean(self, dim: tuple | int = None, keepdims: bool = False) -> Tensor:
         """Return the mean of all values across both dimensions."""
-        result = Tensor(TensorData(value=self.data.mean(), use_numpy=self.use_numpy), children=(self,))
+        result = Tensor(self.data.mean(dims=dim, keepdims=keepdims), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of mean. Shape: {self.shape}")
-            self.grad += TensorData(*self.shape, value=result.data.item() / self.numel, use_numpy=self.use_numpy)
+            # Calculate the number of elements in the mean
+            num_elements_in_mean = self.numel / result.numel
+            self.grad += (1 / num_elements_in_mean) * result.grad
 
         result._gradient = _gradient
         return result
@@ -184,10 +195,8 @@ class Tensor(object):
         result = Tensor(self.data**rhs, children=(self,))
 
         def _gradient() -> None:
-            # rhs_vals will be a number (not Tensor)
             info(f"Gradient of exponentiation. Shape: {self.shape}")
-            g = rhs * self.data ** (rhs - 1) * result.grad
-            self.grad += g.unbroadcast(*self.shape)
+            self.grad += rhs * self.data ** (rhs - 1) * result.grad
 
         result._gradient = _gradient
         return result
@@ -195,14 +204,50 @@ class Tensor(object):
     def __matmul__(self, rhs: Tensor) -> Tensor:
         """Tensor multiplication: self @ rhs."""
         assert isinstance(rhs, Tensor), f"Wrong type: {type(rhs)}"
+        lhs_dims, rhs_dims = len(self.shape), len(rhs.shape)
+        # Go through each of the cases
 
+        if lhs_dims == 1 and rhs_dims == 1:
+            # Return the dot product, has gradient logic encoded
+            return (self * rhs).sum()         
+        
         result = Tensor(self.data @ rhs.data, children=(self, rhs))
+        if lhs_dims >= 2 and rhs_dims >= 2: # Like normal
+            self_permutation = tuple(range(lhs_dims - 2)) + (lhs_dims - 1, lhs_dims - 2)
+            rhs_permutation = tuple(range(rhs_dims - 2)) + (rhs_dims - 1, rhs_dims - 2)
+            def _gradient() -> None:
+                info(f"Gradient of Tensor multiplication (LHS). Shape: {self.shape}")
+                g = result.grad @ rhs.data.permute(*rhs_permutation)
+                self.grad += g.unbroadcast(*self.shape)
+                info(f"Gradient of Tensor multiplication (RHS). Shape: {self.shape}")
+                g = self.data.permute(*self_permutation) @ result.grad
+                rhs.grad += g.unbroadcast(*rhs.shape)
 
-        def _gradient() -> None:
-            info(f"Gradient of Tensor multiplication (LHS). Shape: {self.shape}")
-            self.grad += result.grad @ rhs.data.T
-            info(f"Gradient of Tensor multiplication (RHS). Shape: {self.shape}")
-            rhs.grad += self.data.T @ result.grad
+        elif lhs_dims == 1 and rhs_dims >= 2:
+            rhs_permutation = tuple(range(rhs_dims - 2)) + (rhs_dims - 1, rhs_dims - 2)
+            def _gradient() -> None:
+                info(f"Gradient of Tensor multiplication (LHS). Shape: {self.shape}")
+                g = result.grad.reshape(result.shape[:-1] + (1,) + result.shape[-1:]) @ rhs.data.permute(*rhs_permutation)
+                # The broadcast will take of the 1 in the second last position
+                self.grad += g.unbroadcast(*self.shape)
+                info(f"Gradient of Tensor multiplication (RHS). Shape: {self.shape}")
+                g = self.data.reshape((self.shape[0], 1)) @ result.grad.reshape(result.shape[:-1] + (1,) + result.shape[-1:])
+                rhs.grad += g.unbroadcast(*rhs.shape)
+
+        elif lhs_dims >= 2 and rhs_dims == 1:
+            # If the RHS has dim 1, rhs is technically a column vector
+            # append a 1 to its dimension (4,) -> (4,1)
+            self_permutation = tuple(range(lhs_dims - 2)) + (lhs_dims - 1, lhs_dims - 2)
+            def _gradient() -> None:
+                info(f"Gradient of Tensor multiplication (LHS). Shape: {self.shape}")
+                g = result.grad.reshape(result.shape + (1,)) @ rhs.data.reshape((1,rhs.shape[0]))
+                self.grad += g.unbroadcast(*self.shape)
+                info(f"Gradient of Tensor multiplication (RHS). Shape: {self.shape}")
+                # Add a one to result grad dimension
+                g = self.data.permute(*self_permutation) @ result.grad.reshape(result.shape + (1,))
+                # Then remove the last "1" dimension it after multiplication
+                g.reshape_(g.shape[:-1])
+                rhs.grad += g.unbroadcast(*rhs.shape)
 
         result._gradient = _gradient
         return result
@@ -259,16 +304,36 @@ class Tensor(object):
         return result
 
     def permute(self, *dims: int) -> Tensor:
-        # the gradient is the permute of itself
-        # permute (0,1,2,3) into (1,0,3,2)...
-        # the gradient would be permuting (1,0,3,2) using (1,0,3,2) to get (0,1,2,3) again
 
         result: Tensor = Tensor(self.data.permute(*dims), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of permute. Shape: {self.shape}")
             # Permuting the result with the same parameter (reverse)
-            self.grad += result.grad.permute(*dims)
+            new_dims = tuple(dims.index(i) for i in range(len(dims)))
+            self.grad += result.grad.permute(*new_dims)
 
         result._gradient = _gradient
         return result
+
+    def exp(self) -> Tensor:
+        """Performs element-wise exp"""
+        result: Tensor = Tensor(self.data.exp(), children=(self,))
+
+        def _gradient() -> None:
+            self.grad += self.data.exp() * result.grad
+
+        result._gradient = _gradient
+        return result
+
+    def var(
+        self, dim: tuple | int = None, correction=1, keepdims: bool = False
+    ) -> Tensor:
+        """Calculates the variance over the dimensions specified by dim.
+        dim can be a single dimension, list of dimensions, or None to reduce over all dimensions.
+        """
+        squared_deviation_from_mean = (self - self.mean(dim, keepdims)) ** 2
+        # The var is the average squared distance from the mean.
+        # TODO: account for degrees of freedom
+        var = squared_deviation_from_mean.mean(dim, keepdims)
+        return var
