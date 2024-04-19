@@ -9,6 +9,7 @@ from random import gauss
 
 import numpy as np
 
+
 from icecream import ic
 
 use_numpy = True
@@ -20,7 +21,9 @@ else:
 
 
 class Tensor(object):
-    def __init__(self, data: TensorData, children: tuple = ()) -> None:
+    def __init__(
+        self, data: TensorData, children: tuple = ()
+    ) -> None:
         """A Tensor object that tracks computations for computing gradients."""
         # super().__init__()
         self.data: TensorData = data
@@ -37,7 +40,7 @@ class Tensor(object):
     def __str__(self) -> str:
         return self.__repr__()
 
-    def randn(*shape, generator=lambda: gauss(0, 1)) -> Tensor:
+    def randn(*shape, generator=lambda: gauss(0, 1), use_numpy=False) -> Tensor:
         if isinstance(shape[0], tuple):
             shape = shape[0]
 
@@ -129,7 +132,7 @@ class Tensor(object):
 
     def relu(self) -> Tensor:
         """Element-wise rectified linear unit (ReLU)."""
-        result = Tensor(self.data.relu(), children=(self,))
+        result = Tensor(self.data.relu(), children=(self,), use_numpy = self.data.use_numpy)
 
         def _gradient() -> None:
             info(f"Gradient of ReLU. Shape: {self.shape}")

@@ -5,6 +5,8 @@ from typing import Optional
 
 import numpy as np
 
+import numpy as np
+
 import match
 from match import Tensor, TensorData, use_numpy
 from match.util import get_kernel_position_slices_conv2d
@@ -95,6 +97,7 @@ class Conv2d(Module):
                 sub_tensordata = x.data[kernel_position_slice]
                 # Represent the data as a row vector, we can pass this by value
                 sub_tensordata_row_vector = sub_tensordata._numpy_data.flatten()
+
                 np_duplicate_values_array = np.append(
                     np_duplicate_values_array, sub_tensordata_row_vector
                 )
@@ -295,7 +298,7 @@ class Conv2d(Module):
         self._single_kernel_shape = (self.in_channels,) + kernel_size
         # Each column will be a single kernel, and we have out_channel columns
         self._trainable_kernels: Tensor = match.randn(
-            prod(self._single_kernel_shape), self.out_channels
+            prod(self._single_kernel_shape), self.out_channels, use_numpy=self.use_numpy
         )
 
         print(
@@ -326,6 +329,7 @@ class Conv2d(Module):
         groups: int = 1,
         bias: bool = False,
         padding_mode: str = "zeros",
+        use_numpy: bool = False,
     ) -> None:
         super().__init__()
         self.in_channels: int = in_channels
@@ -335,6 +339,7 @@ class Conv2d(Module):
         self.dilation: tuple | int = self.__initialize_position_variable(dilation)
         self.groups: int = groups
         self.padding_mode = "zeros"
+        self.use_numpy = use_numpy
         self.__initialize_kernels(kernel_size)
         self.__initialize_bias(bias)
 
