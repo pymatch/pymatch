@@ -12,42 +12,42 @@ from numba import jit
 # @jit(fastmath=True, parallel=True)
 
 
-@jit
+@jit(fastmath=True, parallel=True)
 def randn(rows: int, cols: int) -> list[float]:
     return [random() for _ in range(rows * cols)]
 
 
-@jit
+@jit(fastmath=True, parallel=True)
 def sigmoid(x: list[float]) -> list[float]:
     return [1 / (1 + exp(-value)) for value in x]
 
 
-@jit
+@jit(fastmath=True, parallel=True)
 def add_values(a: list[float], b: list[float]) -> list[float]:
     return [x + y for x, y in zip(a, b)]
 
 
-@jit
+@jit(fastmath=True, parallel=True)
 def add_scalar(m: list[float], s: float) -> list[float]:
     return [x + s for x in m]
 
 
-@jit
+@jit(fastmath=True, parallel=True)
 def rdiv_scalar(m: list[float], s: float) -> list[float]:
     return [s / x for x in m]
 
 
-@jit
+@jit(fastmath=True, parallel=True)
 def negate_values(m: list[float]) -> list[float]:
     return [-x for x in m]
 
 
-@jit
+@jit(fastmath=True, parallel=True)
 def exp_values(m: list[float]) -> list[float]:
     return [exp(x) for x in m]
 
 
-@jit
+@jit(fastmath=True, parallel=True)
 def matrix_multiply(
     a: list[float], b: list[float], a_shape: tuple[int, int], b_shape: tuple[int, int]
 ) -> list[float]:
