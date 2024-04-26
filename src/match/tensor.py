@@ -8,7 +8,7 @@ from math import ceil, exp, prod
 from random import gauss
 
 # from .tensorbase import TensorBase
-from . import TensorBase
+from .tensorbase import TensorBase
 
 
 class Tensor(object):
