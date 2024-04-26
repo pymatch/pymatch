@@ -5,75 +5,83 @@ from random import random
 
 from numba import jit
 
-# TODO: fastmath
-# TODO: numba jit (and ability to disable) (NUMBA_DISABLE_JIT)
+# No benefit from range
 
 
-@jit
+@jit(fastmath=True)
 def randn(rows: int, cols: int) -> list[float]:
-    values = []
-    for _ in range(rows * cols):
-        values.append(random())
+    values = [0.0] * (rows * cols)
+    for i in range(rows * cols):
+        values[i] = random()
     return values
 
 
-@jit
+@jit(fastmath=True)
 def sigmoid(x: list[float]) -> list[float]:
-    values = []
-    for value in x:
-        values.append(1 / (1 + exp(-value)))
+    n = len(x)
+    values = [0.0] * n
+    for i in range(n):
+        values[i] = (1 / (1 + exp(-x[i])))
     return values
 
 
-@jit
+@jit(fastmath=True)
 def add_values(a: list[float], b: list[float]) -> list[float]:
-    values = []
-    for x, y in zip(a, b):
-        values.append(x + y)
+    n = len(a)
+    values = [0.0] * n
+    for i in range(n):
+        values[i] = a[i] + b[i]
     return values
 
 
-@jit
+@jit(fastmath=True)
 def add_scalar(m: list[float], s: float) -> list[float]:
-    values = []
-    for x in m:
-        values.append(x + s)
+    n = len(m)
+    values = [0.0] * n
+    for i in range(n):
+        values[i] = m[i] + s
     return values
 
 
-@jit
+@jit(fastmath=True)
 def rdiv_scalar(m: list[float], s: float) -> list[float]:
-    values = []
-    for x in m:
-        values.append(s / x)
+    n = len(m)
+    values = [0.0] * n
+    for i in range(n):
+        values[i] = s / m[i]
     return values
 
 
-@jit
+@jit(fastmath=True)
 def negate_values(m: list[float]) -> list[float]:
-    values = []
-    for x in m:
-        values.append(-x)
+    n = len(m)
+    values = [0.0] * n
+    for i in range(n):
+        values[i] = -m[i]
     return values
 
 
-@jit
+@jit(fastmath=True)
 def exp_values(m: list[float]) -> list[float]:
-    values = []
-    for x in m:
-        values.append(exp(x))
+    n = len(m)
+    values = [0.0] * n
+    for i in range(n):
+        values[i] = exp(m[i])
     return values
 
 
-@jit
+@jit(fastmath=True)
 def matrix_multiply(
     a: list[float], b: list[float], a_shape: tuple[int, int], b_shape: tuple[int, int]
 ) -> list[float]:
+
     result = [0.0] * (a_shape[0] * b_shape[1])
 
     for i in range(a_shape[0]):
         for j in range(b_shape[1]):
             for k in range(a_shape[1]):
-                result[i * b_shape[1] + j] += a[i * a_shape[1] + k] * b[k * b_shape[1] + j]
+                result[i * b_shape[1] + j] += (
+                    a[i * a_shape[1] + k] * b[k * b_shape[1] + j]
+                )
 
     return result
