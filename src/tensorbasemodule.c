@@ -149,36 +149,57 @@ static PyMethodDef PyTensorBase_methods[] = {
 
 // These methods are implemented below
 // TODO: move implementations here?
-static PyObject *PyTensorBase_add(PyObject *self, PyObject *other);
+static PyObject *PyTensorBase_add(PyObject *a, PyObject *b);
+static PyObject *PyTensorBase_divide(PyObject *a, PyObject *b);
+static PyObject *PyTensorBase_negate(PyObject *a);
+
+static PyObject *PyTensorBase_matrix_multiply(PyTensorBase *a, PyTensorBase *b);
 
 static PyNumberMethods PyTensorBase_as_number = {
     .nb_add = (binaryfunc)PyTensorBase_add,
     // .nb_subtract = (binaryfunc)PyTensorBase_as_number_subtract,
     // .nb_multiply = (binaryfunc)PyTensorBase_as_number_multiply,
-    // .nb_true_divide = (binaryfunc)PyTensorBase_as_number_true_divide,
     // .nb_floor_divide = (binaryfunc)PyTensorBase_as_number_floor_divide,
+    .nb_true_divide = (binaryfunc)PyTensorBase_divide,
     // .nb_remainder = (binaryfunc)PyTensorBase_as_number_remainder,
+    // .nb_divmod = (binaryfunc)PyTensorBase_
+
+    .nb_matrix_multiply = (binaryfunc)PyTensorBase_matrix_multiply,
+
     // .nb_power = (ternaryfunc)PyTensorBase_as_number_power,
-    // .nb_negative = (unaryfunc)PyTensorBase_as_number_negative,
+
+    .nb_negative = (unaryfunc)PyTensorBase_negate,
     // .nb_positive = (unaryfunc)PyTensorBase_as_number_positive,
     // .nb_absolute = (unaryfunc)PyTensorBase_as_number_absolute,
     // .nb_invert = (unaryfunc)PyTensorBase_as_number_invert,
+
     // .nb_lshift = (binaryfunc)PyTensorBase_as_number_lshift,
     // .nb_rshift = (binaryfunc)PyTensorBase_as_number_rshift,
+
+    // .nb_bool = (inquiry)PyTensorBase_,
+
     // .nb_and = (binaryfunc)PyTensorBase_as_number_and,
     // .nb_xor = (binaryfunc)PyTensorBase_as_number_xor,
     // .nb_or = (binaryfunc)PyTensorBase_as_number_or,
+
     // .nb_int = (unaryfunc)PyTensorBase_as_number_int,
     // .nb_float = (unaryfunc)PyTensorBase_as_number_float,
+
     // .nb_inplace_add = (binaryfunc)PyTensorBase_as_number_inplace_add,
     // .nb_inplace_subtract = (binaryfunc)PyTensorBase_as_number_inplace_subtract,
     // .nb_inplace_multiply = (binaryfunc)PyTensorBase_as_number_inplace_multiply,
-    // .nb_inplace_true_divide = (binaryfunc)PyTensorBase_as_number_inplace_true_divide,
     // .nb_inplace_floor_divide = (binaryfunc)PyTensorBase_as_number_inplace_floor_divide,
+    // .nb_inplace_true_divide = (binaryfunc)PyTensorBase_as_number_inplace_true_divide,
     // .nb_inplace_remainder = (binaryfunc)PyTensorBase_as_number_inplace_remainder,
+    // .nb_inplace_matrix_multiply = (binaryfunc)PyTensorBase_as_number_inplace_matrix_multiply,
     // .nb_inplace_power = (ternaryfunc)PyTensorBase_as_number_inplace_power,
     // .nb_inplace_lshift = (binaryfunc)PyTensorBase_as_number_inplace_lshift,
     // .nb_inplace_rshift = (binaryfunc
+    // .nb_inplace_and
+    // .nb_inplace_xor
+    // .nb_inplace_or
+
+    // .nb_index
 };
 
 // ----------------------------------------------------------------
@@ -229,7 +250,7 @@ static int args_to_shape(PyObject *args, ShapeArray *tb_shape)
 static int PyTensorBase_init(PyTensorBase *self, PyObject *args, PyObject *kwds)
 {
 
-    ShapeArray tb_shape;
+    ShapeArray tb_shape = {0};
     if (args_to_shape(args, &tb_shape) < 0)
     {
         // NOTE: error message set in args_to_shape
@@ -379,19 +400,19 @@ static PyObject *PyTensorBase_add_tensor_scalar(PyTensorBase *t, scalar s)
 
 static PyObject *PyTensorBase_add_tensor_tensor(PyTensorBase *a, PyTensorBase *b)
 {
-    PyTensorBase *result = PyTensorBase_create(a->tb.shape);
-    if (!result)
-    {
-        // NOTE: error string set in PyTensorBase_create
-        return NULL;
-    }
-
     TensorBase a_temp;
     TensorBase b_temp;
 
     if (TensorBase_broadcast_for_binop(&a->tb, &b->tb, &a_temp, &b_temp) < 0)
     {
         PyErr_SetString(PyExc_ValueError, "Incompatible shapes for addition.");
+        return NULL;
+    }
+
+    PyTensorBase *result = PyTensorBase_create(a_temp.shape);
+    if (!result)
+    {
+        // NOTE: error string set in PyTensorBase_create
         return NULL;
     }
 
@@ -433,6 +454,85 @@ static PyObject *PyTensorBase_add(PyObject *a, PyObject *b)
     }
 }
 
+static PyObject *PyTensorBase_div_scalar_tensor(scalar s, PyTensorBase *t)
+{
+    PyTensorBase *result = PyTensorBase_create(t->tb.shape);
+    if (!result)
+    {
+        // NOTE: error string set in PyTensorBase_create
+        return NULL;
+    }
+
+    TensorBase_div_scalar_tensor(s, &t->tb, &result->tb);
+    return (PyObject *)result;
+}
+
+static PyObject *PyTensorBase_divide(PyObject *a, PyObject *b)
+{
+    if (!(can_math(a) && can_math(b)))
+    {
+        PyErr_SetString(PyExc_ValueError, "Invalid types for division.");
+        return NULL;
+    }
+
+    // (Long | Float) + PyTensorBase
+    if (PyFloatOrLong_Check(a) && PyTensorBase_Check(b))
+    {
+        return PyTensorBase_div_scalar_tensor(PyFloatOrLong_asDouble(a), (PyTensorBase *)b);
+    }
+    // Else invalid
+    else
+    {
+        PyErr_SetString(PyExc_ValueError, "Invalid types for division.");
+        return NULL;
+    }
+}
+
+static PyObject *PyTensorBase_negate(PyObject *a)
+{
+    PyTensorBase *result = PyTensorBase_create(((PyTensorBase *)a)->tb.shape);
+    if (!result)
+    {
+        // NOTE: error string set in PyTensorBase_create
+        return NULL;
+    }
+
+    TensorBase_neg(&((PyTensorBase *)a)->tb, &result->tb);
+    return (PyObject *)result;
+}
+
+static PyObject *PyTensorBase_matrix_multiply(PyTensorBase *a, PyTensorBase *b)
+{
+    if (PyTensorBase_Check(a) && PyTensorBase_Check(b))
+    {
+        ShapeArray new_shape = {0};
+
+        if (TensorBase_get_matrix_multiplication_shape(&a->tb, &b->tb, &new_shape) < 0)
+        {
+            // printf("a->tb.shape: %ld, %ld\n", a->tb.shape[0], a->tb.shape[1]);
+            // printf("b->tb.shape: %ld, %ld\n", b->tb.shape[0], b->tb.shape[1]);
+            PyErr_SetString(PyExc_ValueError, "Incompatible shapes for matrix multiplication.");
+            return NULL;
+        }
+
+        PyTensorBase *result = PyTensorBase_create(new_shape);
+        if (!result)
+        {
+            // NOTE: error string set in PyTensorBase_create
+            return NULL;
+        }
+
+        TensorBase_matrix_multiply(&a->tb, &b->tb, &result->tb);
+        return (PyObject *)result;
+    }
+    // Else invalid
+    else
+    {
+        PyErr_SetString(PyExc_ValueError, "Invalid types for addition.");
+        return NULL;
+    }
+}
+
 // ----------------------------------------------------------------
 // ▗▄▄▄▖                      █
 // ▐▛▀▀▘                ▐▌    ▀
@@ -443,9 +543,9 @@ static PyObject *PyTensorBase_add(PyObject *a, PyObject *b)
 // ▝▘    ▀▀▝▘▝▘ ▝▘ ▝▀▀   ▀▀ ▝▀▀▀▘ ▝▀▘ ▝▘ ▝▘ ▀▀▀
 // ----------------------------------------------------------------
 
-static PyObject *PyTensorBase_ones(PyTensorBase *self, PyObject *args)
+static PyObject *PyTensorBase_ones(PyModuleDef *module, PyObject *args)
 {
-    ShapeArray tb_shape;
+    ShapeArray tb_shape = {0};
     if (args_to_shape(args, &tb_shape) < 0)
     {
         // NOTE: error message set in args_to_shape
@@ -453,23 +553,24 @@ static PyObject *PyTensorBase_ones(PyTensorBase *self, PyObject *args)
     }
 
     PyTensorBase *new_tb = PyTensorBase_create(tb_shape);
+    // TODO: increment pointer?
     if (new_tb == NULL)
     {
         // NOTE: error message set in PyTensorBase_create
         return NULL;
     }
 
-    for (long i = 0; i < self->tb.numel; i++)
+    for (long i = 0; i < new_tb->tb.numel; i++)
     {
-        self->tb.data[i] = 1;
+        new_tb->tb.data[i] = 1;
     }
 
-    return self;
+    return new_tb;
 }
 
-static PyObject *PyTensorBase_randn(PyTensorBase *self, PyObject *args)
+static PyObject *PyTensorBase_randn(PyModuleDef *module, PyObject *args)
 {
-    ShapeArray tb_shape;
+    ShapeArray tb_shape = {0};
     if (args_to_shape(args, &tb_shape) < 0)
     {
         // NOTE: error message set in args_to_shape
@@ -484,10 +585,40 @@ static PyObject *PyTensorBase_randn(PyTensorBase *self, PyObject *args)
     }
 
     TensorBase_randn(&new_tb->tb, 0, 1);
+
+    return new_tb;
+}
+
+static PyObject *PyTensorBase_sigmoid(PyModuleDef *module, PyObject *args)
+{
+    PyObject *obj;
+
+    if (PyArg_ParseTuple(args, "O", &obj) < 0)
+    {
+        PyErr_SetString(PyExc_ValueError, "Failed to parse TensorBase argument.");
+        return NULL;
+    }
+
+    PyTensorBase *t = (PyTensorBase *)obj;
+    // printf("t->tb.shape: %ld, %ld\n", t->tb.shape[0], t->tb.shape[1]);
+    // printf("t->tb.numel: %ld\n", t->tb.numel);
+    // printf("t->strides: %ld, %ld\n", t->tb.strides[0], t->tb.strides[1]);
+    // printf("t->ndim: %ld\n", t->tb.ndim);
+    PyTensorBase *result = PyTensorBase_create(t->tb.shape);
+    if (!result)
+    {
+        // NOTE: error string set in PyTensorBase_create
+        return NULL;
+    }
+
+    TensorBase_sigmoid(&t->tb, &result->tb);
+    return (PyObject *)result;
 }
 
 static PyMethodDef PyTensorBase_functions[] = {
-    {"ones", (PyCFunction)PyTensorBase_ones, METH_NOARGS, "TODO: docs"},
+    {"ones", (PyCFunction)PyTensorBase_ones, METH_VARARGS, "TODO: docs"},
+    {"randn", (PyCFunction)PyTensorBase_randn, METH_VARARGS, "TODO: docs"},
+    {"sigmoid", (PyCFunction)PyTensorBase_sigmoid, METH_VARARGS, "TODO: docs"},
     {NULL} /* Sentinel */
 };
 
