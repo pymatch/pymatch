@@ -1,5 +1,15 @@
 # Development Notes
 
+## TODO
+
+- [Dig into numba aot compilation](https://numba.readthedocs.io/en/stable/user/pycc.html)
+- Dig into C-extension matmul speed ups (better caching?)
+- Check C-extension for memory leaks (valgrind? python package?)
+- look into [mojo resources](https://github.com/modularml/mojo/blob/main/examples/notebooks/Matmul.ipynb)
+- [implement C-extension mapping](https://medium.com/@rcorbish/c-extensions-for-python3-731f4262f4b5)
+- [Automatic stub generation](https://mypy.readthedocs.io/en/stable/stubgen.html)
+- Try cython?
+
 I'm not sure that we'll want to add this to the Python Package Index. The intended use is for reading through the code, not using as an installable library.
 
 ## Notes on C Extension
@@ -8,8 +18,12 @@ I'm not sure that we'll want to add this to the Python Package Index. The intend
 # Initial install (no --editable flag)
 python -m pip install .
 
-# Reinstall after changes
+# Reinstall after changes (touch tensorbasemodule.c if editing tensorbase.c)
+touch src/tensorbasemodule.c
 python -m pip install --upgrade --force-reinstall .
+
+# Testing
+python -c "from match.tensorbase import randn, sigmoid; x = randn(2,2); sigmoid(x)"
 ~~~
 
 
