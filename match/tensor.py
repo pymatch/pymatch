@@ -27,7 +27,6 @@ class Tensor(object):
         """A Tensor object that tracks computations for computing gradients."""
         # super().__init__()
         self.data: TensorData = data
-        # issue here
         self.grad = TensorData(*self.shape)
 
         # Backpropagation compute graph
@@ -132,7 +131,7 @@ class Tensor(object):
 
     def relu(self) -> Tensor:
         """Element-wise rectified linear unit (ReLU)."""
-        result = Tensor(self.data.relu(), children=(self,), use_numpy = self.data.use_numpy)
+        result = Tensor(self.data.relu(), children=(self,))
 
         def _gradient() -> None:
             info(f"Gradient of ReLU. Shape: {self.shape}")

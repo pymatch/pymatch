@@ -2,8 +2,7 @@ from __future__ import annotations
 import itertools
 import math
 from math import ceil, prod
-from operator import add, ge, gt, le, lt, mul, pow
-from random import gauss
+from operator import add, gt, mul, pow
 from copy import deepcopy
 from typing import Callable, Union
 from .util import (
@@ -19,7 +18,7 @@ import numpy as np
 
 
 class TensorData(object):
-    """A storage and arithmetic object for n-dimensional tensor data.
+    """A storage and arithmetic object for n-dimensional tensor.
 
     TensorData is an inefficient, but easy-to-understand implementation
     of many n-dimensional tensor operations.
@@ -55,14 +54,10 @@ class TensorData(object):
         assert all(
             isinstance(dim, int) for dim in size
         ), f"Size {size} must be a variadict of only integers"
-        self.use_numpy: bool = use_numpy
         self.shape: tuple[int] = size
         self.dtype: type = dtype
-        if self.use_numpy:
-            self._numpy_data = numpy_data
         self.__initialize_tensor_data(value)
-        if not self.use_numpy:
-            self.__initialize_strides()
+        self.__initialize_strides()
 
     def __initialize_strides(self) -> None:
         """Initializes the strides of the dimensions of the TensorData.
@@ -91,10 +86,6 @@ class TensorData(object):
 
     def __initialize_tensor_data(self, value) -> None:
         """Helper method that initializes all the values in the TensorData object."""
-        if self.use_numpy:
-            self._item = None
-            if self._numpy_data is None:
-                self._numpy_data: np.ndarray = np.full(self.shape, value)
         if self.shape:
             self._item = None
             self._data = [TensorData(value=value) for _ in range(prod(self.shape))]
@@ -151,8 +142,6 @@ class TensorData(object):
             ValueError: raises value error if attempting to access the item of a
             TensorData object with more than one element.
         """
-        if self.use_numpy:
-            return self._numpy_data.item(0)
         if self._item != None:
             return self._item
         elif len(self._data) == 1:
@@ -168,9 +157,6 @@ class TensorData(object):
             RuntimeError: raises runtime error if the product of the dimensions of
             the new shape is not equal to the existing number of elements.
         """
-        if self.use_numpy:
-            self._numpy_data = self._numpy_data.reshape(shape)
-            return
         # If the current shape is equal to the desired shape, then do nothing.
         if shape == self.shape:
             return
@@ -272,10 +258,6 @@ class TensorData(object):
         if not isinstance(coords, tuple):
             coords = (coords,)
 
-        if self.use_numpy:
-            res = self._numpy_data[*coords]
-            return TensorData(*res.shape, use_numpy=True, numpy_data=res)
-
         output_shape, possible_indices = self.__convert_slice_to_index_list(coords)
 
         if not output_shape:
@@ -311,11 +293,6 @@ class TensorData(object):
         if not isinstance(coords, tuple):
             coords = (coords,)
 
-        if self.use_numpy:
-            if isinstance(value, TensorData):
-                raise TypeError("Incompatible TensorData options. Numpy and TensorData")
-            self._numpy_data[*coords] = value
-
         output_shape, possible_indices = self.__convert_slice_to_index_list(coords)
 
         if not output_shape:
@@ -346,9 +323,6 @@ class TensorData(object):
 
     # TODO(SRM47) Update the repr to make it look like PyTorch
     def __repr__(self):
-        if self.use_numpy:
-            return self._numpy_data.__repr__()
-
         return self._data.__repr__() if self._item is None else self._item.__repr__()
 
     def __str__(self) -> str:
@@ -533,14 +507,6 @@ class TensorData(object):
 
     def relu(self) -> Union[TensorData, np.ndarray]:
         """Return a new TensorData object with the ReLU of each element."""
-        if self.use_numpy:
-            return TensorData(
-                *self._numpy_data.shape,
-                dtype=self.dtype,
-                use_numpy=True,
-                # This is the ReLU
-                numpy_data=np.maximum(self._numpy_data, 0),
-            )
         new_tensor = TensorData(*self.shape)
         for i in range(len(new_tensor._data)):
             new_tensor._data[i]._item = relu(self._data[i]._item)
@@ -548,14 +514,6 @@ class TensorData(object):
 
     def sigmoid(self) -> TensorData:
         """Return a new TensorData object with the sigmoid of each element."""
-        if self.use_numpy:
-            return TensorData(
-                *self._numpy_data.shape,
-                dtype=self.dtype,
-                use_numpy=True,
-                # This is the ReLU
-                numpy_data=sigmoid(self._numpy_data),
-            )
         new_tensor = TensorData(*self.shape)
         for i in range(len(new_tensor._data)):
             new_tensor._data[i]._item = sigmoid(self._data[i]._item)
@@ -563,15 +521,6 @@ class TensorData(object):
 
     def permute(self, *dims: int) -> TensorData:
         """Return an aliased TensorData object with a permutation of its original dimensions permuted"""
-        if self.use_numpy:
-            return TensorData(
-                *self._numpy_data.shape,
-                dtype=self.dtype,
-                use_numpy=True,
-                # This is the ReLU
-                numpy_data=np.transpose(self._numpy_data, tuple(dims)),
-            )
-
         if not is_permutation([i for i in range(len(self.shape))], dims):
             print(dims)
             raise RuntimeError(
@@ -601,21 +550,10 @@ class TensorData(object):
     def T(self) -> TensorData:
         """Return an aliased TensorData object with the transpose of the tensor."""
         # Transpose is the same as permuting the tensor with the reverse of its dimensions
-        if self.use_numpy:
-            return TensorData(
-                *self._numpy_data.shape,
-                dtype=self.dtype,
-                use_numpy=True,
-                # This is the ReLU
-                numpy_data=np.transpose(self._numpy_data),
-            )
         return self.permute(*reversed(range(len(self.shape))))
 
     def __set(self, val) -> None:
         """Internal method to set all values in the TensorData to val."""
-        if self.use_numpy:
-            self._numpy_data = np.full(self._numpy_data.shape, val)
-            return
         if not self._data:
             self._item = val
         else:
@@ -656,25 +594,6 @@ class TensorData(object):
 
     def __add__(self, rhs: Union[float, int, TensorData]) -> TensorData:
         """Element-wise addition: self + rhs."""
-        if self.use_numpy:
-            if isinstance(rhs, TensorData):
-                if not rhs.use_numpy:
-                    raise TypeError("Incompatible TensorData Options")
-                res = self._numpy_data + rhs._numpy_data
-                return TensorData(
-                    *res.shape,
-                    dtype=self.dtype,
-                    use_numpy=True,
-                    numpy_data=res,
-                )
-            else:
-                return TensorData(
-                    *self._numpy_data.shape,
-                    dtype=self.dtype,
-                    use_numpy=True,
-                    numpy_data=self._numpy_data + rhs,
-                )
-
         return self.__binary_op(add, rhs)
 
     def __radd__(self, lhs: Union[float, int, TensorData]) -> TensorData:
@@ -691,25 +610,6 @@ class TensorData(object):
 
     def __mul__(self, rhs: Union[float, int, TensorData]) -> TensorData:
         """Element-wise multiplication: self * rhs."""
-        if self.use_numpy:
-            if isinstance(rhs, TensorData):
-                if not rhs.use_numpy:
-                    raise TypeError("Incompatible TensorData Options")
-                res = self._numpy_data * rhs._numpy_data
-                return TensorData(
-                    *res.shape,
-                    dtype=self.dtype,
-                    use_numpy=True,
-                    numpy_data=res,
-                )
-            else:
-                return TensorData(
-                    *self._numpy_data.shape,
-                    dtype=self.dtype,
-                    use_numpy=True,
-                    numpy_data=self._numpy_data * rhs,
-                )
-
         return self.__binary_op(mul, rhs)
 
     def __rmul__(self, lhs: float | int | TensorData) -> TensorData:
@@ -734,24 +634,6 @@ class TensorData(object):
 
     def __gt__(self, rhs: float | int | TensorData) -> TensorData:
         """Element-wise comparison: self > rhs."""
-        if self.use_numpy:
-            if isinstance(rhs, TensorData):
-                if not rhs.use_numpy:
-                    raise TypeError("Incompatible TensorData Options")
-                res = self._numpy_data > rhs._numpy_data
-                return TensorData(
-                    *res.shape,
-                    dtype=self.dtype,
-                    use_numpy=True,
-                    numpy_data=res,
-                )
-            else:
-                return TensorData(
-                    *self._numpy_data.shape,
-                    dtype=self.dtype,
-                    use_numpy=True,
-                    numpy_data=self._numpy_data > rhs,
-                )
         return self.__binary_op(gt, rhs)
 
     def exp(self) -> TensorData:

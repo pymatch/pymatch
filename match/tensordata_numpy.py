@@ -40,12 +40,17 @@ class TensorData(object):
         assert all(
             isinstance(dim, int) for dim in size
         ), f"Size {size} must be a variadict of only integers"
-        self._numpy_data = numpy_data
-        if self._numpy_data is None:
+
+        if numpy_data is None:
+            # If an ndarray is not already provided, instantiate a new one with the specified fill value.
             self._numpy_data: np.ndarray = np.full(size, value)
+        else:
+            # If an ndarray is provided, use it.
+            self._numpy_data = numpy_data
 
     @property
-    def shape(self):
+    def shape(self) -> tuple[int]:
+        """Returns the shape of the underlying ndarray"""
         return self._numpy_data.shape
 
     def item(self) -> Union[int, float]:
@@ -57,7 +62,7 @@ class TensorData(object):
         """
         return self._numpy_data.item(0)
 
-    def reshape_(self, shape: tuple):
+    def reshape_(self, shape: tuple[int]):
         """Helper method to reshape the TensorData object inplace, without changing the data.
 
         Raises:
@@ -66,14 +71,20 @@ class TensorData(object):
         """
         self._numpy_data = self._numpy_data.reshape(shape)
 
-    def reshape(self, shape: tuple) -> TensorData:
-        """Helper method to reshape and return a new TensorData object without changing the data"""
+    def reshape(self, shape: tuple[int]) -> TensorData:
+        """Helper method to reshape and return a new TensorData object without changing the data.
+        
+        Args:
+            shape: The size to be reshaped to.
+
+        Returns:
+            A new TensorData object with the same data. 
+        """
         return TensorData(
-            *shape,
             numpy_data=self._numpy_data.reshape(shape),
         )
 
-    def __getitem__(self, coords):
+    def __getitem__(self, coords) -> TensorData:
         """Retrieves a subtensor from the current tensor using the given coordinates.
 
         Args:
@@ -84,8 +95,7 @@ class TensorData(object):
         """
         if not isinstance(coords, tuple):
             coords = (coords,)
-        res = self._numpy_data[*coords]
-        return TensorData(*res.shape, numpy_data=res)
+        return TensorData(numpy_data=self._numpy_data[*coords])
 
     def __setitem__(self, coords, value):
         """Sets the value of a subtensor at the given coordinates.
@@ -114,47 +124,73 @@ class TensorData(object):
         return self.__repr__()
 
     def sum(self, dims: tuple | int = None, keepdims: bool = False) -> TensorData:
+        """Compute the sum across certain dimensions in a TensorData object
+        Args:
+            dims (tuple | int, optional): The dimensions to sum over. Defaults to None.
+            keepdims (bool, optional): Whether to keep the dimensions being aggregated. Defaults to False.
+
+        Returns:
+            TensorData: The resulting TensorData object.
+        """
         if isinstance(dims, int):
             dims = (dims,)
 
-        res = self._numpy_data.sum(axis=dims, keepdims=keepdims)
-        return TensorData(*res.shape, numpy_data=res)
+        return TensorData(numpy_data=self._numpy_data.sum(axis=dims, keepdims=keepdims))
 
     def mean(self, dims: tuple | int = None, keepdims: bool = False) -> TensorData:
-        """Compute the mean of all values in the tensor."""
+        """Compute the mean across certain dimensions in a TensorData object
+        Args:
+            dims (tuple | int, optional): The dimensions to average over. Defaults to None.
+            keepdims (bool, optional): Whether to keep the dimensions being averaged. Defaults to False.
+
+        Returns:
+            TensorData: The resulting TensorData object.
+        """
         if isinstance(dims, int):
             dims = (dims,)
 
-        res_mean = self._numpy_data.mean(axis=dims, keepdims=keepdims)
-        return TensorData(*res_mean.shape, numpy_data=res_mean)
+        return TensorData(numpy_data=self._numpy_data.mean(axis=dims, keepdims=keepdims))
 
     def unbroadcast(self, *shape: int) -> TensorData:
-        """Return a new TensorData unbroadcast from current shape to desired shape.
+        """Return a new TensorData with the broadcasted dimensions adjusted to match the desired shape.
 
-        Reference to this: https://mostafa-samir.github.io/auto-diff-pt2/#unbroadcasting-adjoints
+        This method is used to unbroadcast the dimensions of a tensor to match a desired shape.
+        It is particularly useful for operations that involve broadcasting, such as element-wise
+        arithmetic operations or matrix multiplication.
+
+        Args:
+            *shape (int): The desired shape of the tensor after unbroadcasting.
+
+        Returns:
+            TensorData: A new TensorData object with adjusted dimensions.
+
+        Reference:
+            For more information on unbroadcasting, refer to:
+            https://mostafa-samir.github.io/auto-diff-pt2/#unbroadcasting-adjoints
         """
-        print("shape", shape)
-        # TODO(SAM): Change to shallow copy.
         correct_adjoint = self
 
+        # If the current shape doesn't match the desired shape.
         if self.shape != shape:
-            print(self.shape, shape)
             dim_diff = abs(len(self.shape) - len(shape))
-            if dim_diff:  # != 0
-            
-                summation_dims = tuple(range(dim_diff))
-                correct_adjoint = self.sum(dims=summation_dims)
-         
-            # If the shape was (3,4,5,6) and we want to unbroadcast it to (3,4,1,1), we need to sum the 2nd and 3rd dimension with keepdim True
 
+            # If there is a difference in dimensions, sum over excess dimensions and discard the dimensions summed over.
+            if dim_diff:
+                summation_dims = tuple(range(dim_diff))
+                # Sum over excess dimensions and discard them (keepdims=False by default).
+                correct_adjoint = self.sum(dims=summation_dims)
+
+            # Find the dimensions that were originally ones
             originally_ones = tuple(
                 [axis for axis, size in enumerate(shape) if size == 1]
             )
+
+            # If there were originally dimensions with size 1, sum over them with keepdims=True
             if len(originally_ones) != 0:
                 correct_adjoint = correct_adjoint.sum(
                     dims=originally_ones, keepdims=True
                 )
-        print("new shape", correct_adjoint.shape)
+
         return correct_adjoint
 
     def ones_(self) -> None:
@@ -171,30 +207,25 @@ class TensorData(object):
     def relu(self) -> Union[TensorData, np.ndarray]:
         """Return a new TensorData object with the ReLU of each element."""
         return TensorData(
-            *self._numpy_data.shape,
             numpy_data=np.maximum(self._numpy_data, 0),
         )
 
     def sigmoid(self) -> TensorData:
         """Return a new TensorData object with the sigmoid of each element."""
         return TensorData(
-            *self._numpy_data.shape,
             numpy_data=1 / (1 + np.exp(-self._numpy_data)),
         )
 
     def permute(self, *dims: int) -> TensorData:
         """Return an aliased TensorData object with a permutation of its original dimensions permuted"""
         return TensorData(
-            *self._numpy_data.shape,
             numpy_data=np.transpose(self._numpy_data, tuple(dims)),
         )
 
     @property
     def T(self) -> TensorData:
         """Return an aliased TensorData object with the transpose of the tensor."""
-
         return TensorData(
-            *self._numpy_data.shape,
             numpy_data=np.transpose(self._numpy_data),
         )
 
@@ -205,14 +236,11 @@ class TensorData(object):
     def __add__(self, rhs: Union[float, int, TensorData]) -> TensorData:
         """Element-wise addition: self + rhs."""
         if isinstance(rhs, TensorData):
-            res = self._numpy_data + rhs._numpy_data
             return TensorData(
-                *res.shape,
-                numpy_data=res,
+                numpy_data=self._numpy_data + rhs._numpy_data,
             )
         else:
             return TensorData(
-                *self._numpy_data.shape,
                 numpy_data=self._numpy_data + rhs,
             )
 
@@ -231,14 +259,11 @@ class TensorData(object):
     def __mul__(self, rhs: Union[float, int, TensorData]) -> TensorData:
         """Element-wise multiplication: self * rhs."""
         if isinstance(rhs, TensorData):
-            res = self._numpy_data * rhs._numpy_data
             return TensorData(
-                *res.shape,
-                numpy_data=res,
+                numpy_data=self._numpy_data * rhs._numpy_data,
             )
         else:
             return TensorData(
-                *self._numpy_data.shape,
                 numpy_data=self._numpy_data * rhs,
             )
 
@@ -249,7 +274,6 @@ class TensorData(object):
     def __pow__(self, rhs: float | int) -> TensorData:
         """Element-wise exponentiation: self ** rhs."""
         return TensorData(
-            *self._numpy_data.shape,
             numpy_data=self._numpy_data**rhs,
         )
 
@@ -268,26 +292,20 @@ class TensorData(object):
     def __gt__(self, rhs: float | int | TensorData) -> TensorData:
         """Element-wise comparison: self > rhs."""
         if isinstance(rhs, TensorData):
-            res = self._numpy_data > rhs._numpy_data
             return TensorData(
-                *res.shape,
-                numpy_data=res,
+                numpy_data=self._numpy_data > rhs._numpy_data,
             )
         else:
             return TensorData(
-                *self._numpy_data.shape,
                 numpy_data=self._numpy_data > rhs,
             )
 
     def exp(self) -> TensorData:
         return TensorData(
-            *self._numpy_data.shape,
             numpy_data=np.exp(self._numpy_data),
         )
 
     def __matmul__(self, rhs: TensorData) -> TensorData:
-        res = self._numpy_data @ rhs._numpy_data
         return TensorData(
-            *res.shape,
-            numpy_data=res,
+            numpy_data=self._numpy_data @ rhs._numpy_data,
         )
