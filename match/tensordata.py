@@ -17,24 +17,21 @@ from .util import (
 import numpy as np
 
 
-class TensorData(object):
+class TensorData:
     """A storage and arithmetic object for n-dimensional tensor.
 
-    TensorData is an inefficient, but easy-to-understand implementation
-    of many n-dimensional tensor operations.
+    The TensorData class provides a basic implementation for storing and performing
+    operations on  n-dimensional tensors. While not optimized for performance, it's
+    useful for understanding fundamental tensor concepts.
 
-    Like the PyTorch Tensor object, the pymatch TensorData objects are
-    recursive structures that hold either a list of TensorData objects,
-    or a single value. For instance, a TensorData object's data list could
-    look like [TensorData(0), TensorData(1), raise NotImplementedError, TensorData(47)].
-    There are therefore two implicit types of TensorData objects. Ones
-    that store only a single value, accesible by .item(), and ones that
-    store a list of these `singleton` TensorData objects.
+    TensorData objects are recursive:
+        Leaf Nodes: A TensorData object can hold a single value, accessible via .item().
+        Internal Nodes: A TensorData object can hold a list of other Leaf TensorData
+        objects, allowing the representation of multi-dimensional tensors.
 
-    Using the provided shape of the TensorData object, accessing data using
-    the standard coordinate system, for instance x[1,3,2], involves translation
-    of the coordinates (1,3,2) to the corresponding index in the data list
-    to fetch the intended data.
+    Accessing Elements
+    Use standard coordinate notation to retrieve data (e.g., x[1, 3, 2]). The TensorData
+    class internally translates these coordinates into the correct index within its data list.
     """
 
     def __init__(
@@ -50,14 +47,35 @@ class TensorData(object):
             value (float): The default value of each element in the Tensor
             dtype (type): The type of the values in the Tensor
         """
-        super().__init__()
+        # Ensures that 'size' contains only integer dimensions, raising an error otherwise.
         assert all(
             isinstance(dim, int) for dim in size
         ), f"Size {size} must be a variadict of only integers"
+        # Stores the tensor's shape as a tuple of integers for future reference.
         self.shape: tuple[int] = size
-        self.dtype: type = dtype
+        # Initializes the tensor with data from 'value'.
         self.__initialize_tensor_data(value)
+        # Calculates memory access strides for efficient operations based on the shape.
         self.__initialize_strides()
+
+    def __initialize_tensor_data(self, value) -> None:
+        """Helper method that initializes all the values in the TensorData object.
+
+        Args:
+            value (Number): The numerical value the tensor will be initialized to.
+        """
+        if self.shape:
+            # Case 1: Tensor has a defined shape (not a single value).
+            self._item = None  # Indicate this node doesn't store a single value.
+
+            # Create a list containing child TensorData objects. The total number of
+            # child nodes is the product of shape dimensions. Each child node is
+            # initialized with the provided 'value'.
+            self._data = [TensorData(value=value) for _ in range(prod(self.shape))]
+        else:
+            # Case 2: Tensor represents a single value.
+            self._item = value  # Store the value directly.
+            self._data = None  # Indicate there's no list of child nodes.
 
     def __initialize_strides(self) -> None:
         """Initializes the strides of the dimensions of the TensorData.
@@ -72,28 +90,29 @@ class TensorData(object):
 
         For example, if the shape of the TensorData object was (3,2,3),
         the desired tuple of strides would be (6,3,1).
+
+        See `__multi_to_single_rank_translation` for example stride usage.
         """
+        # Handle the case where the tensor holds a single value
         if not self._data:
-            self._strides = ()
+            # No strides needed for a single value.
+            self._strides = None
             return
 
         strides = []
+        # Start with the total number of elements.
         current_stride = len(self._data)
+
+        # Iterate over each dimension to calculate strides.
         for dim in self.shape:
+            # Divide by the current dimension's size.
             current_stride /= dim
+            # Add the calculated stride to the list.
             strides.append(current_stride)
+        # Store the strides as a tuple.
         self._strides = tuple(strides)
 
-    def __initialize_tensor_data(self, value) -> None:
-        """Helper method that initializes all the values in the TensorData object."""
-        if self.shape:
-            self._item = None
-            self._data = [TensorData(value=value) for _ in range(prod(self.shape))]
-        else:
-            self._item = value
-            self._data = None
-
-    def __out_of_bounds_coords(self, coords: tuple):
+    def __out_of_bounds_coords(self, coords: tuple[int]):
         """Helper method that checks if a set of coordinates is out of bounds of the
         shape of the TensorData object.
 
@@ -103,8 +122,10 @@ class TensorData(object):
             than or equal to the shape's dimension.
         """
         if len(coords) != len(self.shape):
+            # Error check: Ensure the number of coordinates matches the number of dimensions
             raise IndexError(f"Too many dimensions, expected {len(self.shape)}.")
         if any(i < 0 or i >= j for i, j in zip(coords, self.shape)):
+            # Error check: Ensure each coordinate is within the bounds of its corresponding dimension
             raise IndexError("Index out of bounds")
 
     def __out_of_bounds_index(self, index: int):
@@ -130,12 +151,20 @@ class TensorData(object):
 
         return tuple(reversed(coordinates))
 
-    def __multi_to_single_rank_translation(self, coords: tuple) -> int:
-        """Helper method to translate the coordinates into an index into the data list."""
-        self.__out_of_bounds_coords(coords)
+    def __multi_to_single_rank_translation(self, coords: tuple[int]) -> int:
+        """Helper method to translate the n-dimensional coordinates into an index into the data list.
+
+        Args:
+            coords (tuple[int]): The coordinates to convert.
+
+        Returns:
+            int: The index into the data list.
+        """
+        # Verify that the provided coordinates are not out of bounds.
+        # self.__out_of_bounds_coords(coords)
         return int(sum(dim * stride for dim, stride in zip(coords, self._strides)))
 
-    def item(self) -> Union[int, float]:
+    def item(self) -> int | float:
         """Returns the item of a singleton, or single element TensorData object.
 
         Raises:
@@ -147,11 +176,14 @@ class TensorData(object):
         elif len(self._data) == 1:
             return self._data[0]._item
         raise ValueError(
-            "only one element tensors can be converted into python scalars"
+            f"only single element tensors can be converted into python scalars."
         )
 
     def reshape_(self, shape: tuple):
         """Helper method to reshape the TensorData object inplace, without changing the data.
+
+        Args:
+            shape (tuple): The shape to change to.
 
         Raises:
             RuntimeError: raises runtime error if the product of the dimensions of
@@ -184,8 +216,19 @@ class TensorData(object):
         self.__initialize_strides()
 
     def reshape(self, shape: tuple) -> TensorData:
-        """Helper method to reshape and return a new TensorData object without changing the data"""
-        # Reshape a singleton into a 1D Tensor.
+        """Helper method to reshape and return a new TensorData object without changing the data.
+
+        Args:
+            shape (tuple): The shape of the new tensor
+
+        Raises:
+            RuntimeError: raises runtime error if the product of the dimensions of
+            the new shape is not equal to the existing number of elements.
+
+        Returns:
+            TensorData: The new tensor with a shallow copy of the data, but the new shape
+        """
+        # Reshape a singleton into a 1D, single-element TensorData.
         if self._data is None:
             if shape != (1,):
                 raise RuntimeError(f"shape {shape} is invalid for input of size 1")
@@ -193,19 +236,17 @@ class TensorData(object):
             new_tensor._data[0] = self
             return new_tensor
 
-        # Reshape a 1D Tensor into a singleton.
+        # Reshape a single-element TensorData into a singleton.
         if len(self._data) == 1 and not shape:
             return self._data[0]
 
-        # An instantiation of a TensorData object will make prod(self.shape)
-        # singleton TensorData objects. As we do not need to create these
-        # extra objects, we initialize the new tensor to have a shape of (0,)
-        # so no singleton is created in new_tensor._data.
-        new_tensor = TensorData(0)
+        # Initialize an empty TensorData object to avoid extra overhead.
+        new_tensor = TensorData()
         new_tensor._data = self._data
         new_tensor.reshape_(shape)
         return new_tensor
 
+    # TODO: DOCUMENT FROM HERE ONWARD
     def __convert_slice_to_index_list(self, coords):
         """Converts a list of slices or integers to a list of possible indices for each dimension.
 
@@ -222,16 +263,16 @@ class TensorData(object):
         """
         output_shape = []
         possible_indices = []
-        for i in range(len(self.shape)):
-            if i >= len(coords):
-                output_shape.append(self.shape[i])
-                possible_indices.append(range(self.shape[i]))
+        for dim in range(len(self.shape)):
+            if dim >= len(coords):
+                output_shape.append(self.shape[dim])
+                possible_indices.append(range(self.shape[dim]))
                 continue
 
-            coordinate = coords[i]
+            coordinate = coords[dim]
             if isinstance(coordinate, slice):
                 start = coordinate.start or 0
-                stop = coordinate.stop or self.shape[i]
+                stop = coordinate.stop or self.shape[dim]
                 step = coordinate.step or 1
 
                 output_shape.append(ceil((stop - start) / step))
@@ -244,9 +285,9 @@ class TensorData(object):
             else:
                 raise ValueError("can only be ints or slices")
 
-        return output_shape, possible_indices
+        return tuple(output_shape), possible_indices
 
-    def __getitem__(self, coords):
+    def __getitem__(self, coords: tuple[int]):
         """Retrieves a subtensor from the current tensor using the given coordinates.
 
         Args:
@@ -266,18 +307,25 @@ class TensorData(object):
             self.__out_of_bounds_coords(coords)
             return self._data[self.__multi_to_single_rank_translation(coords)]
 
-        output_data = []
-        for index in itertools.product(*possible_indices):
-            self.__out_of_bounds_coords(index)
-            output_data.append(
-                self._data[self.__multi_to_single_rank_translation(index)]
-            )
+        # output_data = []
+        # # Why does itertools.product work? because data is stored sequentially
+        # # possible_indicies is also sequential...every possible combination
+        # for index in itertools.product(*possible_indices):
+        #     output_data.append(
+        #         self._data[self.__multi_to_single_rank_translation(index)]
+        #     )
 
-        output_tensor = TensorData(*output_shape)
+        output_data = [
+            self._data[self.__multi_to_single_rank_translation(index)]
+            for index in itertools.product(*possible_indices)
+        ]
+
+        output_tensor = TensorData()
         output_tensor._data = output_data
+        output_tensor.reshape_(output_shape)
         return output_tensor
 
-    def __setitem__(self, coords, value):
+    def __setitem__(self, coords: tuple[int], value: TensorData | int | float):
         """Sets the value of a subtensor at the given coordinates.
 
         Args:
@@ -303,7 +351,7 @@ class TensorData(object):
                 )
             elif isinstance(value, (int, float)):
                 self._data[self.__multi_to_single_rank_translation(coords)]._item = (
-                    self.dtype(value)
+                    value
                 )
             else:
                 raise TypeError("invalid type to set value in tensor data")
