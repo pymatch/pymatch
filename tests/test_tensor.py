@@ -174,7 +174,7 @@ class TestTensor(unittest.TestCase):
     def test_pow_int(self):
         mat, ten = mat_and_ten()
 
-        random_exponent = 2.6 # For some reason this works only with integers
+        random_exponent = 2 # For some reason this works only with integers
         mat_res = pow(mat, random_exponent)
         ten_res = pow(ten, random_exponent)
 

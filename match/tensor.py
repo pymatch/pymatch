@@ -12,7 +12,7 @@ import numpy as np
 
 from icecream import ic
 
-use_numpy = True
+use_numpy = True # False to use the python implementation of TensorData.
 
 if use_numpy:
     from .tensordata_numpy import TensorData
@@ -39,7 +39,7 @@ class Tensor(object):
     def __str__(self) -> str:
         return self.__repr__()
 
-    def randn(*shape, generator=lambda: gauss(0, 1), use_numpy=False) -> Tensor:
+    def randn(*shape, generator=lambda: gauss(0, 1)) -> Tensor:
         if isinstance(shape[0], tuple):
             shape = shape[0]
 
@@ -55,7 +55,10 @@ class Tensor(object):
 
         rand_tensordata = TensorData(0)
         data = [TensorData(value=generator()) for _ in range(prod(shape))]
-        rand_tensordata._data = data
+        if use_numpy:
+            rand_tensordata._numpy_data = data
+        else:
+            rand_tensordata._data = data
         rand_tensordata.reshape_(shape)
         return Tensor(rand_tensordata)
 
