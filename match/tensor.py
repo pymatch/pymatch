@@ -17,6 +17,7 @@ else:
 
 LOG = True
 
+
 class Tensor:
     def __init__(self, data: TensorData, children: tuple = ()) -> None:
         """
@@ -24,7 +25,7 @@ class Tensor:
 
         Args:
             data (TensorData): The data for the tensor, typically a NumPy array or similar structure.
-            children (tuple, optional): A tuple of child tensors that this tensor depends on in the 
+            children (tuple, optional): A tuple of child tensors that this tensor depends on in the
                                         computational graph. Defaults to an empty tuple.
         """
         self.data: TensorData = data
@@ -429,4 +430,3 @@ class Tensor:
         # TODO: account for degrees of freedom
         var = squared_deviation_from_mean.mean(dim, keepdims)
         return var
-
