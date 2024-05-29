@@ -57,11 +57,7 @@ class Tensor:
             return Tensor(TensorData(value=generator()))
 
         rand_tensordata = TensorData(0)
-        data = [TensorData(value=generator()) for _ in range(prod(shape))]
-        if use_numpy:
-            rand_tensordata._numpy_data = data
-        else:
-            rand_tensordata._data = data
+        rand_tensordata._data = [TensorData(value=generator()) for _ in range(prod(shape))]
         rand_tensordata.reshape_(shape)
         return Tensor(rand_tensordata)
 
