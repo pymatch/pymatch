@@ -8,7 +8,7 @@ from collections import Counter
 from itertools import zip_longest
 import numpy as np
 
-Number: type = Union[float, int]
+Number: type = float | int
 
 
 def all_coordinates(shape: tuple):

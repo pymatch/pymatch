@@ -53,7 +53,7 @@ class TensorData(object):
         """Returns the shape of the underlying ndarray"""
         return self._numpy_data.shape
 
-    def item(self) -> Union[int, float]:
+    def item(self) -> int | float:
         """Returns the item of a singleton, or single element TensorData object.
 
         Raises:
@@ -97,7 +97,7 @@ class TensorData(object):
             coords = (coords,)
         return TensorData(numpy_data=self._numpy_data[*coords])
 
-    def __setitem__(self, coords, value):
+    def __setitem__(self, coords, value) -> None:
         """Sets the value of a subtensor at the given coordinates.
 
         Args:

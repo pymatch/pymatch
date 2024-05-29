@@ -3,6 +3,7 @@ from __future__ import annotations
 from logging import info
 from math import prod
 from random import gauss
+from typing import Callable, List, Set
 import numpy as np
 
 from icecream import ic
@@ -18,13 +19,20 @@ LOG = True
 
 class Tensor:
     def __init__(self, data: TensorData, children: tuple = ()) -> None:
-        """A Tensor object that tracks computations for computing gradients."""
+        """
+        Initialize a Tensor object with given data and optional children, supporting autodifferentiation.
+
+        Args:
+            data (TensorData): The data for the tensor, typically a NumPy array or similar structure.
+            children (tuple, optional): A tuple of child tensors that this tensor depends on in the 
+                                        computational graph. Defaults to an empty tuple.
+        """
         self.data: TensorData = data
-        self.grad = TensorData(*self.shape)
+        self.grad: TensorData = TensorData(*self.shape)
 
         # Backpropagation compute graph
-        self._gradient = lambda: None
-        self._children = set(children)
+        self._gradient: Callable = lambda: None
+        self._children: Set[Tensor] = set(children)
 
     def __repr__(self) -> str:
         return self.data.__repr__()
@@ -32,6 +40,7 @@ class Tensor:
     def __str__(self) -> str:
         return self.__repr__()
 
+    # TODO: Remove this
     def randn(*shape, generator=lambda: gauss(0, 1)) -> Tensor:
         if isinstance(shape[0], tuple):
             shape = shape[0]
@@ -56,7 +65,13 @@ class Tensor:
         return Tensor(rand_tensordata)
 
     def backward(self) -> None:
-        """Compute all gradients using backpropagation."""
+        """Compute all gradients using backpropagation.
+
+        This method performs backpropagation to compute the gradient of each tensor
+        in the computational graph. It does this by first performing a topological
+        sort of the nodes in the graph and then computing the gradients in reverse
+        order of the sort.
+        """
 
         sorted_nodes: list[Tensor] = []
         visited: set[Tensor] = set()
@@ -95,14 +110,33 @@ class Tensor:
 
     @property
     def numel(self) -> int:
+        """Return the number of elements in a tensor."""
         return self.data.numel()
 
     @property
     def shape(self) -> int:
+        """Return the shape of the tensor."""
         return self.data.shape
 
     def sum(self, dim: tuple | int = None, keepdims: bool = False) -> Tensor:
-        """Return the sum of all values across dimensions"""
+        """
+        Return the sum of all values across specified dimensions.
+
+        Args:
+            dim (tuple | int, optional): The dimensions over which to sum. If None,
+                sums over all dimensions. Defaults to None.
+            keepdims (bool, optional): Whether to keep the dimensions of the result
+                the same as the input tensor, with reduced dimensions set to size 1.
+                Defaults to False.
+
+        Returns:
+            Tensor: A new tensor containing the sum of all values across the specified dimensions.
+
+        Note:
+            The gradient of the sum operation is handled by assigning a gradient
+            function to the resulting tensor, which propagates the gradient to the
+            original tensor.
+        """
         result = Tensor(self.data.sum(dims=dim, keepdims=keepdims), children=(self,))
 
         def _gradient() -> None:
@@ -113,7 +147,24 @@ class Tensor:
         return result
 
     def mean(self, dim: tuple | int = None, keepdims: bool = False) -> Tensor:
-        """Return the mean of all values across both dimensions."""
+        """
+        Return the mean of all values across specified dimensions.
+
+        Args:
+            dim (tuple | int, optional): The dimensions over which to calculate the mean.
+                If None, calculates the mean over all dimensions. Defaults to None.
+            keepdims (bool, optional): Whether to keep the dimensions of the result
+                the same as the input tensor, with reduced dimensions set to size 1.
+                Defaults to False.
+
+        Returns:
+            Tensor: A new tensor containing the mean of all values across the specified dimensions.
+
+        Note:
+            The gradient of the mean operation is handled by assigning a gradient
+            function to the resulting tensor, which propagates the gradient to the
+            original tensor.
+        """
         result = Tensor(self.data.mean(dims=dim, keepdims=keepdims), children=(self,))
 
         def _gradient() -> None:
@@ -297,7 +348,16 @@ class Tensor:
     # unpermuting and un-reshaping
 
     def reshape(self, *shape: int) -> Tensor:
-        """Helper method to reshape and return a new TensorData object without changing the data"""
+        """
+        Reshape the tensor to the specified shape and return a new Tensor object.
+
+        Args:
+            shape (int): The new shape dimensions. Can be passed as separate integers
+                or as a tuple of integers.
+
+        Returns:
+            Tensor: A new tensor with the specified shape.
+        """
         # The reshape method can accept either a variadict or a tuple.
         result: Tensor = Tensor(self.data.reshape(tuple(shape)), children=(self,))
 
@@ -310,7 +370,15 @@ class Tensor:
         return result
 
     def permute(self, *dims: int) -> Tensor:
+        """
+        Permute the dimensions of the tensor and return a new Tensor object.
 
+        Args:
+            *dims (int): The new order of dimensions. Can be passed as separate integers.
+
+        Returns:
+            Tensor: A new tensor with the dimensions permuted according to the specified order.
+        """
         result: Tensor = Tensor(self.data.permute(*dims), children=(self,))
 
         def _gradient() -> None:
@@ -335,8 +403,26 @@ class Tensor:
     def var(
         self, dim: tuple | int = None, correction=1, keepdims: bool = False
     ) -> Tensor:
-        """Calculates the variance over the dimensions specified by dim.
-        dim can be a single dimension, list of dimensions, or None to reduce over all dimensions.
+        """
+        Calculate the variance over the dimensions specified by `dim`.
+
+        Args:
+            dim (tuple | int, optional): The dimension or dimensions over which to
+                calculate the variance. Can be a single dimension, a list of dimensions,
+                or None to reduce over all dimensions. Defaults to None.
+            correction (int, optional): An integer specifying whether to apply a
+                correction factor to the variance calculation. Defaults to 1.
+            keepdims (bool, optional): Whether to keep the dimensions of the result
+                the same as the input tensor, with reduced dimensions set to size 1.
+                Defaults to False.
+
+        Returns:
+            Tensor: A new tensor containing the variance over the specified dimensions.
+
+        Note:
+            The variance is the average squared distance from the mean.
+            The gradient of the variance operation is not handled explicitly here. Rather,
+            in the other elementary functions that make this one.
         """
         squared_deviation_from_mean = (self - self.mean(dim, keepdims)) ** 2
         # The var is the average squared distance from the mean.
