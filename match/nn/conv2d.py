@@ -7,6 +7,7 @@ from math import prod
 from match import Tensor, TensorData, use_numpy
 from module import Module
 
+
 class Conv2d(Module):
     def __init__(
         self,
@@ -59,76 +60,31 @@ class Conv2d(Module):
         if bias:
             self._trainable_bias = match.randn(self.out_channels)
 
-    def __create_tensordata_with_duplicate_values(
+    def __create_tensor_with_duplicate_values(
         self, x: Tensor, kernel_positions: list[slice], N: int
-    ) -> TensorData:
-        if use_numpy:
-            np_duplicate_values_array = np.array([])
-            printed = False
-            for kernel_position_slice in kernel_positions:
-                # Grab the sub tensor
-                sub_tensordata = x.data[kernel_position_slice]
-                # Represent the data as a row vector, we can pass this by value
-                sub_tensordata_row_vector = sub_tensordata._numpy_data.flatten()
+    ) -> Tensor:
+        # Store all subtensors cooresponding to all kernel positions in an array
+        # and flatten them into a single dimension.
+        single_kernel_size = prod(self._single_kernel_shape)
 
-                np_duplicate_values_array = np.append(
-                    np_duplicate_values_array, sub_tensordata_row_vector
-                )
-                if not printed:
-                    print(
-                        f"Length of single subtensor_data: {len(sub_tensordata_row_vector)} ... this should be equal to {prod(self._single_kernel_shape)}"
-                    )
-                    printed = True
+        # duplicate_values_array_flattened = [x.data[kernel_position].reshape(single_kernel_size) for kernel_position in kernel_positions]
 
-            print(
-                f"Total number of elements in duplicate tensor: {len(np_duplicate_values_array)}"
-            )
+        duplicate_values_array_flattened = []
+        for kernel_position in kernel_positions:
+            # Grab subtensor.
+            subtensor = x.data[kernel_position]
+            # Flatten subtensor into single dimension.
+            flattened_subtensor = subtensor.reshape(single_kernel_size)
+            # Add flattened subtensor into array.
+            duplicate_values_array_flattened.append(flattened_subtensor)
 
-            if len(x.shape) == 4:
-                np_duplicate_values_array = np_duplicate_values_array.reshape(
-                    (
-                        N,
-                        int(len(kernel_positions) / N),
-                        prod(self._single_kernel_shape),
-                    )  # Divide by N because kernel positions includes those for all N instances in the batch
-                )
-                print(
-                    f"Reshaping to {(N,int(len(kernel_positions) / N),prod(self._single_kernel_shape))}"
-                )
-            else:
-                np_duplicate_values_array = np_duplicate_values_array.reshape(
-                    (
-                        len(kernel_positions),
-                        prod(self._single_kernel_shape),
-                    )  # Only single batch so N=1
-                )
-                print(
-                    f"Reshaping to {(len(kernel_positions),prod(self._single_kernel_shape))}"
-                )
-            return TensorData(
-                numpy_data=np_duplicate_values_array,
-            )
-
-        temp_tensordata_with_duplicate_values = TensorData(0)
-        # This assumes that the kernel positions are in sorted order of rows then columns.
-        printed = False
-        for kernel_position_slice in kernel_positions:
-            # Grab the sub tensor
-            sub_tensordata = x.data[kernel_position_slice]
-            # Represent the data as a row vector, we can pass this by value
-            temp_tensordata_with_duplicate_values._data += sub_tensordata._data
-            if not printed:
-                print(
-                    f"Length of single subtensor_data: {len(sub_tensordata._data)} ... this should be equal to {prod(self._single_kernel_shape)}"
-                )
-                printed = True
-
-        print(
-            f"Total number of elements in duplicate tensor: {len(temp_tensordata_with_duplicate_values._data)}"
+        # Concatenate all of the Tensors into a single matrix. Each row is a single kernel position.
+        tensordata_with_duplicate_values = TensorData.concatenate(
+            tensordatas=duplicate_values_array_flattened, dim=0
         )
 
         if len(x.shape) == 4:
-            temp_tensordata_with_duplicate_values.reshape_(
+            tensordata_with_duplicate_values.reshape_(
                 (
                     N,
                     int(len(kernel_positions) / N),
@@ -139,7 +95,7 @@ class Conv2d(Module):
                 f"Reshaping to {(N,int(len(kernel_positions) / N),prod(self._single_kernel_shape))}"
             )
         else:
-            temp_tensordata_with_duplicate_values.reshape_(
+            tensordata_with_duplicate_values.reshape_(
                 (
                     len(kernel_positions),
                     prod(self._single_kernel_shape),
@@ -148,7 +104,8 @@ class Conv2d(Module):
             print(
                 f"Reshaping to {(len(kernel_positions),prod(self._single_kernel_shape))}"
             )
-        return temp_tensordata_with_duplicate_values
+
+        return Tensor(data=tensordata_with_duplicate_values)
 
     def forward(self, x: Tensor) -> Tensor:
         # Assume tensor is shape (N, in_channels, H, W) or (in_channels, H W)
@@ -207,20 +164,16 @@ class Conv2d(Module):
             print(kernel_positions[i])
         print()
 
-        temp_tensordata_with_duplicate_values = (
-            self.__create_tensordata_with_duplicate_values(x, kernel_positions, N)
-        )
-
-        temp_tensor_with_duplicate_values = Tensor(
-            data=temp_tensordata_with_duplicate_values
+        tensor_with_duplicate_values = self.__create_tensordata_with_duplicate_values(
+            x, kernel_positions, N
         )
 
         # (9 positions, 32 kernels)
         print(
-            f"Multiplying tensor w/ duplicates and kernels ... {temp_tensor_with_duplicate_values.shape} @ {self._trainable_kernels.shape} "
+            f"Multiplying tensor w/ duplicates and kernels ... {tensor_with_duplicate_values.shape} @ {self._trainable_kernels.shape} "
         )
         convolution_tensor: Tensor = (
-            temp_tensor_with_duplicate_values @ self._trainable_kernels
+            tensor_with_duplicate_values @ self._trainable_kernels
         )
         print(
             f"Convolution tensor (after product) shape: {convolution_tensor.shape} ... should be {(N, int(len(kernel_positions)/N), self.out_channels)}"
@@ -290,15 +243,15 @@ class Conv2d(Module):
                     )
                 )
 
-        instance_kernel_positions = [
-            (
-                slice(0, kernel_channels),  # Number of channels
-                slice(h, h + kernel_height),  # The height of the area
-                slice(c, c + kernel_width),  # The width of the area
-            )
-            for h in range(0, height_in - kernel_height + 1, self.stride[0])
-            for c in range(0, width_in - kernel_width + 1, self.stride[1])
-        ]
+        # instance_kernel_positions = [
+        #     (
+        #         slice(0, kernel_channels),  # Number of channels
+        #         slice(h, h + kernel_height),  # The height of the area
+        #         slice(c, c + kernel_width),  # The width of the area
+        #     )
+        #     for h in range(0, height_in - kernel_height + 1, self.stride[0])
+        #     for c in range(0, width_in - kernel_width + 1, self.stride[1])
+        # ]
 
         if len(tensor_shape) == 4:
             instance_kernel_positions = [
