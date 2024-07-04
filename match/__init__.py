@@ -1,4 +1,6 @@
-from .tensor import use_numpy
+"""Pytorch Remake
+"""
+from .tensor import Tensor, use_numpy
 
 if use_numpy:
     from .tensordata_numpy import TensorData

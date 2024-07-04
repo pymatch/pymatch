@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import match
-import numpy as np
-
 from match import Tensor
 from module import Module
 
