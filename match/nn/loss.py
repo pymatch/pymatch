@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from match import Tensor
-from module import Module
+from .module import Module
 
 
 class MSELoss(Module):

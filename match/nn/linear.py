@@ -5,7 +5,7 @@ import match
 
 from math import sqrt
 from match import Tensor
-from module import Module
+from .module import Module
 
 
 class Linear(Module):

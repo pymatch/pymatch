@@ -3,9 +3,9 @@ from __future__ import annotations
 from math import sqrt
 from typing import Optional
 from match import Tensor, TensorData
-from linear import Linear
-from module import Module
-from softmax import Softmax
+from .linear import Linear
+from .module import Module
+from .softmax import Softmax
 from copy import deepcopy
 
 class MultiheadAttention(Module):

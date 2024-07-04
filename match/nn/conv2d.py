@@ -5,7 +5,7 @@ import match
 
 from math import prod
 from match import Tensor, TensorData, use_numpy
-from module import Module
+from .module import Module
 
 
 class Conv2d(Module):
@@ -74,7 +74,7 @@ class Conv2d(Module):
             # Grab subtensor.
             subtensor = x.data[kernel_position]
             # Flatten subtensor into single dimension.
-            flattened_subtensor = subtensor.reshape(single_kernel_size)
+            flattened_subtensor = subtensor.reshape((single_kernel_size,))
             # Add flattened subtensor into array.
             duplicate_values_array_flattened.append(flattened_subtensor)
 
@@ -149,7 +149,7 @@ class Conv2d(Module):
         # This flattens the 2D spatial positions into a single row per kernel placement.
         # The resulting shape is: (number of kernel positions in the input tensor, number of elements in the kernel)
 
-        kernel_positions, h, w = self.get_kernel_position_slices_conv2d(x.shape)
+        kernel_positions, h, w = self.__get_kernel_position_slices_conv2d(x.shape)
         print(f"Actual height_out: {h} ... should be {height_out}")
         print(f"Actual width_out: {w} ... should be {width_out}")
         print(
