@@ -73,12 +73,12 @@ class TensorData(object):
 
     def reshape(self, shape: tuple[int]) -> TensorData:
         """Helper method to reshape and return a new TensorData object without changing the data.
-        
+
         Args:
             shape: The size to be reshaped to.
 
         Returns:
-            A new TensorData object with the same data. 
+            A new TensorData object with the same data.
         """
         return TensorData(
             numpy_data=self._numpy_data.reshape(shape),
@@ -149,7 +149,9 @@ class TensorData(object):
         if isinstance(dims, int):
             dims = (dims,)
 
-        return TensorData(numpy_data=self._numpy_data.mean(axis=dims, keepdims=keepdims))
+        return TensorData(
+            numpy_data=self._numpy_data.mean(axis=dims, keepdims=keepdims)
+        )
 
     def unbroadcast(self, *shape: int) -> TensorData:
         """Return a new TensorData with the broadcasted dimensions adjusted to match the desired shape.
@@ -309,3 +311,29 @@ class TensorData(object):
         return TensorData(
             numpy_data=self._numpy_data @ rhs._numpy_data,
         )
+
+    @staticmethod
+    def concatenate(tensordatas: list[TensorData], dim: int = 0) -> TensorData:
+        """Concatenates a sequence of tensors along a given dimension.
+
+        Args:
+            tensors: A sequence of tensors (e.g., NumPy arrays) to concatenate.
+            dim: The dimension along which to concatenate. Default is 0.
+
+        Returns:
+            The concatenated tensor.
+
+        Raises:
+            ValueError: If tensors have incompatible shapes or dim is invalid.
+        """
+        if not tensordatas:  # Handle empty input
+            raise ValueError("Input tensors cannot be empty")
+
+        # Check shape compatibility (all dimensions except the concatenation dim must match)
+        for i in range(1, len(tensordatas)):
+            if tensordatas[i].shape[:dim] + tensordatas[i].shape[dim + 1:] != tensordatas[0].shape[:dim] + tensordatas[0].shape[dim + 1:]:
+                raise ValueError("match.cat(): tensors must have the same shape, except along the concatenation dimension")
+
+        # Concatenate along the specified dimension.
+        tensordata_numpy_arrays = [td._numpy_data for td in tensordatas]
+        return TensorData(numpy_data=np.concatenate(tensordata_numpy_arrays, axis=dim))
