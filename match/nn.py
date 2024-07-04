@@ -9,7 +9,6 @@ import numpy as np
 
 import match
 from match import Tensor, TensorData, use_numpy
-from match.util import get_kernel_position_slices_conv2d
 
 from copy import deepcopy
 
@@ -70,12 +69,8 @@ class Linear(Module):
     def __init__(self, in_features, out_features) -> None:
         super().__init__()
         # Kaiming He initialization
-        self.W = Tensor.randn(out_features, in_features) * sqrt(
-            (2 / out_features) / 3
-        )
-        self.b = Tensor.randn(out_features, 1) * sqrt(
-            (2 / out_features) / 3
-        )
+        self.W = Tensor.randn(out_features, in_features) * sqrt((2 / out_features) / 3)
+        self.b = Tensor.randn(out_features, 1) * sqrt((2 / out_features) / 3)
 
     def forward(self, x: Tensor) -> Tensor:
         # Returns a new Tensor
@@ -86,8 +81,59 @@ class Linear(Module):
 
 
 class Conv2d(Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: tuple | int,
+        stride: tuple | int = 1,
+        padding: tuple | int = 0,
+        dilation: tuple | int = 1,
+        groups: int = 1,
+        bias: bool = False,
+        padding_mode: str = "zeros",
+        use_numpy: bool = False,
+    ) -> None:
+        super().__init__()
+        self.in_channels: int = in_channels
+        self.out_channels: int = out_channels
+        self.stride: tuple | int = self.__initialize_position_variable(stride)
+        self.padding: tuple | int = self.__initialize_position_variable(padding)
+        self.dilation: tuple | int = self.__initialize_position_variable(dilation)
+        self.groups: int = groups
+        self.padding_mode = "zeros"
+        self.use_numpy = use_numpy
+        self.__initialize_kernels(kernel_size)
+        self.__initialize_bias(bias)
+
+    def __initialize_position_variable(self, val: tuple | int):
+        return val if isinstance(val, tuple) else (val, val)
+
+    def __initialize_kernels(self, kernel_size: tuple | int) -> None:
+        if isinstance(kernel_size, int):
+            kernel_size = (kernel_size, kernel_size)
+        # Out channels is the number of kernels, so the true kernel is shape (filters, kernel_size, kernel_size)
+        self._single_kernel_shape = (self.in_channels,) + kernel_size
+        # Each column will be a single kernel, and we have out_channel columns.
+        # The number of rows will be the number of elements in each kernel.
+        self._trainable_kernels: Tensor = Tensor.randn(
+            prod(self._single_kernel_shape), self.out_channels
+        )
+
+        print(
+            f"Shape of a single kernel (#channels, height, width): {self._single_kernel_shape}"
+        )
+        print(
+            f"Shape of a trainable kernel matrix (#elements in each kernel, #kernels): {self._trainable_kernels.shape}"
+        )
+
+    def __initialize_bias(self, bias: bool) -> None:
+        self.bias: bool = bias
+        if bias:
+            self._trainable_bias = match.randn(self.out_channels)
+
     def __create_tensordata_with_duplicate_values(
-        self, x, kernel_positions, N
+        self, x: Tensor, kernel_positions: list[slice], N: int
     ) -> TensorData:
         if use_numpy:
             np_duplicate_values_array = np.array([])
@@ -133,7 +179,6 @@ class Conv2d(Module):
                     f"Reshaping to {(len(kernel_positions),prod(self._single_kernel_shape))}"
                 )
             return TensorData(
-                *np_duplicate_values_array.shape,
                 numpy_data=np_duplicate_values_array,
             )
 
@@ -179,7 +224,7 @@ class Conv2d(Module):
         return temp_tensordata_with_duplicate_values
 
     def forward(self, x: Tensor) -> Tensor:
-        # Assume tensor is shape (N, in_channels, H, W) or (in_chnnels, H W)
+        # Assume tensor is shape (N, in_channels, H, W) or (in_channels, H W)
 
         N = 1
         if len(x.shape) == 4:
@@ -215,13 +260,12 @@ class Conv2d(Module):
             + 1
         )
 
-        # Calculate positions
-        # Put each position of the kernel in a row,
-        # shape should be (#positions of kernel in tensor, num elements in kernel (prod(singlekernel_shape)))
+        # Flatten kernel positions.
+        # Each row represents a single placement of the kernel on the input tensor.
+        # This flattens the 2D spatial positions into a single row per kernel placement.
+        # The resulting shape is: (number of kernel positions in the input tensor, number of elements in the kernel)
 
-        kernel_positions, h, w = get_kernel_position_slices_conv2d(
-            x.shape, self._single_kernel_shape, self.stride
-        )
+        kernel_positions, h, w = self.get_kernel_position_slices_conv2d(x.shape)
         print(f"Actual height_out: {h} ... should be {height_out}")
         print(f"Actual width_out: {w} ... should be {width_out}")
         print(
@@ -291,57 +335,55 @@ class Conv2d(Module):
 
         return convolution_tensor
 
-    def __initialize_kernels(self, kernel_size: tuple | int) -> None:
-        if isinstance(kernel_size, int):
-            kernel_size = (kernel_size, kernel_size)
-        # Out channels is the number of kernels, so the true kernel is shape (filters, kernel_size, kernel_size)
-        self._single_kernel_shape = (self.in_channels,) + kernel_size
-        # Each column will be a single kernel, and we have out_channel columns
-        self._trainable_kernels: Tensor = match.randn(
-            prod(self._single_kernel_shape), self.out_channels, use_numpy=self.use_numpy
-        )
-
-        print(
-            f"Shape of a single kernel (#channels, height, width): {self._single_kernel_shape}"
-        )
-        print(
-            f"Shape of a trainable kernel matrix (#elements in each kernel, #kernels): {self._trainable_kernels.shape}"
-        )
-
-    def __initialize_bias(self, bias: bool) -> None:
-        self.bias: bool = bias
-        if bias:
-            self._trainable_bias = match.randn(
-                self.out_channels
+    # TODO: Account for padding and dilation.
+    def __get_kernel_position_slices_conv2d(
+        self,
+        tensor_shape: tuple[int],
+    ) -> tuple[slice]:
+        if len(tensor_shape) == 4:
+            N, _, height_in, width_in = tensor_shape
+        elif len(tensor_shape) == 3:
+            _, height_in, width_in = tensor_shape
+        else:
+            raise ValueError(
+                "Incorrect shape: Either (N, in_channels, H, W) or (in_channels, H W)"
             )
 
-    def __initialize_position_variable(self, val: tuple | int):
-        return val if isinstance(val, tuple) else (val, val)
+        # Calculate the positions for each instance in the batch.
+        kernel_channels, kernel_height, kernel_width = self._single_kernel_shape
 
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        kernel_size: tuple | int,
-        stride: tuple | int = 1,
-        padding: tuple | int = 0,
-        dilation: tuple | int = 1,
-        groups: int = 1,
-        bias: bool = False,
-        padding_mode: str = "zeros",
-        use_numpy: bool = False,
-    ) -> None:
-        super().__init__()
-        self.in_channels: int = in_channels
-        self.out_channels: int = out_channels
-        self.stride: tuple | int = self.__initialize_position_variable(stride)
-        self.padding: tuple | int = self.__initialize_position_variable(padding)
-        self.dilation: tuple | int = self.__initialize_position_variable(dilation)
-        self.groups: int = groups
-        self.padding_mode = "zeros"
-        self.use_numpy = use_numpy
-        self.__initialize_kernels(kernel_size)
-        self.__initialize_bias(bias)
+        instance_kernel_positions = []
+        for h in range(0, height_in - kernel_height + 1, self.stride[0]):
+            for c in range(0, width_in - kernel_width + 1, self.stride[1]):
+                instance_kernel_positions.append(
+                    (
+                        slice(0, kernel_channels),  # Number of channels
+                        slice(h, h + kernel_height),  # The height of the area
+                        slice(c, c + kernel_width),  # The width of the area
+                    )
+                )
+
+        instance_kernel_positions = [
+            (
+                slice(0, kernel_channels),  # Number of channels
+                slice(h, h + kernel_height),  # The height of the area
+                slice(c, c + kernel_width),  # The width of the area
+            )
+            for h in range(0, height_in - kernel_height + 1, self.stride[0])
+            for c in range(0, width_in - kernel_width + 1, self.stride[1])
+        ]
+
+        if len(tensor_shape) == 4:
+            instance_kernel_positions = [
+                (n,) + position
+                for n in range(N)
+                for position in instance_kernel_positions
+            ]
+
+        height_out = len(range(0, height_in - kernel_height + 1, self.stride[0]))
+        width_out = len(range(0, width_in - kernel_width + 1, self.stride[1]))
+
+        return tuple(instance_kernel_positions), height_out, width_out
 
 
 class MultiheadAttention(Module):
@@ -512,18 +554,10 @@ class TransformerDecoderLayer(Module):
         self.d_model = d_model
         self.num_heads = nhead
 
-        self.self_attention = MultiheadAttention(
-            embed_dim=d_model, num_heads=nhead
-        )
-        self.feed_forward = PositionWiseFeedForward(
-            d_model, dim_feedforward
-        )
-        self.first_layer_norm = LayerNorm(
-            normalized_shape=d_model, eps=layer_norm_eps
-        )
-        self.second_layer_norm = LayerNorm(
-            normalized_shape=d_model, eps=layer_norm_eps
-        )
+        self.self_attention = MultiheadAttention(embed_dim=d_model, num_heads=nhead)
+        self.feed_forward = PositionWiseFeedForward(d_model, dim_feedforward)
+        self.first_layer_norm = LayerNorm(normalized_shape=d_model, eps=layer_norm_eps)
+        self.second_layer_norm = LayerNorm(normalized_shape=d_model, eps=layer_norm_eps)
 
     def forward(self, x: Tensor, mask: Optional[Tensor]) -> Tensor:
         # Apply self-attention mechanism to input x
@@ -574,6 +608,7 @@ class PositionWiseFeedForward(Module):
 
 class GPT2(Module):
     """https://www.youtube.com/watch?v=ISNdQcPhsts"""
+
     def __init__(
         self,
         decoder_layer: TransformerDecoderLayer,

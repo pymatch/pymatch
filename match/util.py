@@ -88,9 +88,9 @@ def get_kernel_position_slices_conv2d(
 ) -> tuple[slice]:
     N = 1
     if len(tensor_shape) == 4:
-        N, channels, height_in, width_in = tensor_shape
+        N, _, height_in, width_in = tensor_shape
     elif len(tensor_shape) == 3:
-        channels, height_in, width_in = tensor_shape
+        _, height_in, width_in = tensor_shape
     else:
         raise ValueError(
             "Incorrect shape: Either (N, in_channels, H, W) or (in_channels, H W)"
@@ -98,13 +98,6 @@ def get_kernel_position_slices_conv2d(
 
     # Calculate the positions for each instance in the batch.
     kernel_channels, kernel_height, kernel_width = kernel_shape
-    #     height_out = (
-    #         height_in + 2 * padding[0] - dilation[0] * (kernel_height - 1) - 1
-    #     ) / stride[0] - 1
-
-    #     width_out = (
-    #         width_in + 2 * padding[1] - dilation[1] * (kernel_width - 1) - 1
-    #     ) / stride[1] - 1
 
     instance_kernel_positions = []
     height_out = len(range(0, height_in - kernel_height + 1, stride[0]))

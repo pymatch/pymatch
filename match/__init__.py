@@ -4,6 +4,7 @@ if use_numpy:
     from .tensordata_numpy import TensorData
 else:
     from .tensordata import TensorData
+
 from .nn import *
 from math import prod
 from random import gauss
