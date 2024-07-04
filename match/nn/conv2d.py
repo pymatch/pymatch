@@ -164,7 +164,7 @@ class Conv2d(Module):
             print(kernel_positions[i])
         print()
 
-        tensor_with_duplicate_values = self.__create_tensordata_with_duplicate_values(
+        tensor_with_duplicate_values = self.__create_tensor_with_duplicate_values(
             x, kernel_positions, N
         )
 
