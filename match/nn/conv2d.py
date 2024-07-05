@@ -178,6 +178,11 @@ class Conv2d(Module):
         print(
             f"Convolution tensor (after product) shape: {convolution_tensor.shape} ... should be {(N, int(len(kernel_positions)/N), self.out_channels)}"
         )
+        # Add bias here before reshaping into desired tensor
+        if self.bias:
+            print("Adding bias...")
+            convolution_tensor += self._trainable_bias
+            
 
         # (32 kernels, 9 positions)
         # We only want to transpose the last two dimensions...permute!
@@ -209,9 +214,6 @@ class Conv2d(Module):
         print(
             f"Final shape: {convolution_tensor.shape} ... should be {(N, self.out_channels, height_out, width_out)}"
         )
-
-        if self.bias:
-            convolution_tensor += self._trainable_bias
 
         return convolution_tensor
 
