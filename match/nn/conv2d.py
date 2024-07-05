@@ -107,10 +107,8 @@ class Conv2d(Module):
 
         return Tensor(data=tensordata_with_duplicate_values)
 
-    def forward(self, x: Tensor) -> Tensor:
-        # Assume tensor is shape (N, in_channels, H, W) or (in_channels, H W)
-
-        N = 1
+    def get_expected_output_dimensions(self, x: Tensor) -> tuple[int]:
+        N = None
         if len(x.shape) == 4:
             N, _, height_in, width_in = x.shape
         elif len(x.shape) == 3:
@@ -119,8 +117,6 @@ class Conv2d(Module):
             raise ValueError(
                 "Incorrect shape: Either (N, in_channels, H, W) or (in_channels, H W)"
             )
-
-        print(f"Shape of tensor input: {x.shape}")
 
         height_out = int(
             (
@@ -143,6 +139,29 @@ class Conv2d(Module):
             / self.stride[1]
             + 1
         )
+
+        if N:
+            return N, self.out_channels, height_out, width_out
+        else:
+            return self.out_channels, height_out, width_out
+
+    def forward(self, x: Tensor) -> Tensor:
+        # Assume tensor is shape (N, in_channels, H, W) or (in_channels, H W)
+
+        N = 1
+        if len(x.shape) == 4:
+            N, _, height_in, width_in = x.shape
+        elif len(x.shape) == 3:
+            _, height_in, width_in = x.shape
+        else:
+            raise ValueError(
+                "Incorrect shape: Either (N, in_channels, H, W) or (in_channels, H W)"
+            )
+
+        print(f"Shape of tensor input: {x.shape}")
+
+        expected_output_dimensions = self.get_expected_output_dimensions(x)
+        height_out, width_out = expected_output_dimensions[-2:]
 
         # Flatten kernel positions.
         # Each row represents a single placement of the kernel on the input tensor.
@@ -182,7 +201,6 @@ class Conv2d(Module):
         if self.bias:
             print("Adding bias...")
             convolution_tensor += self._trainable_bias
-            
 
         # (32 kernels, 9 positions)
         # We only want to transpose the last two dimensions...permute!
@@ -212,7 +230,7 @@ class Conv2d(Module):
             )
 
         print(
-            f"Final shape: {convolution_tensor.shape} ... should be {(N, self.out_channels, height_out, width_out)}"
+            f"Final shape: {convolution_tensor.shape} ... should be {expected_output_dimensions}"
         )
 
         return convolution_tensor
