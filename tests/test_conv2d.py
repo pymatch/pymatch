@@ -133,7 +133,6 @@ class TestConv2d(unittest.TestCase):
         pytorch_output = pytorch_conv2d(ten_x)
         self.assertTrue(almost_equal(match_output, pytorch_output))
 
-    # TODO(Sam): Fix gradient functionality.
     def test_conv2d_gradients(self):
         """Gemini Generated, then modified."""
         in_channels = 2
