@@ -20,7 +20,6 @@ class Conv2d(Module):
         groups: int = 1,
         bias: bool = False,
         padding_mode: str = "zeros",
-        use_numpy: bool = False,
     ) -> None:
         super().__init__()
         self.in_channels: int = in_channels
@@ -147,6 +146,7 @@ class Conv2d(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         # Assume tensor is shape (N, in_channels, H, W) or (in_channels, H W)
+        
 
         N = 1
         if len(x.shape) == 4:
@@ -174,15 +174,6 @@ class Conv2d(Module):
         print(
             f"Number of kernel positions: {len(kernel_positions)} ... should be {N*height_out*width_out}\n"
         )
-        print("The first 5 are...")
-        for i in range(5):
-            print(kernel_positions[i])
-        print()
-        print("The last 5 are...")
-        for i in range(-5, 0):
-            print(kernel_positions[i])
-        print()
-
         tensor_with_duplicate_values = self.__create_tensor_with_duplicate_values(
             x, kernel_positions, N
         )
@@ -198,9 +189,10 @@ class Conv2d(Module):
             f"Convolution tensor (after product) shape: {convolution_tensor.shape} ... should be {(N, int(len(kernel_positions)/N), self.out_channels)}"
         )
         # Add bias here before reshaping into desired tensor
+        ct1 = convolution_tensor
         if self.bias:
             print("Adding bias...")
-            convolution_tensor += self._trainable_bias
+            ct1 = convolution_tensor + self._trainable_bias
 
         # (32 kernels, 9 positions)
         # We only want to transpose the last two dimensions...permute!
@@ -212,28 +204,22 @@ class Conv2d(Module):
         # What about gradient here?
         #  convolution_tensor.data = convolution_tensor.data.permute(*permute_shape)
         #  convolution_tensor.shape = convolution_tensor.data.shape
-        convolution_tensor = convolution_tensor.permute(*permute_shape)
+        ct2 = ct1.permute(*permute_shape)
         print(
-            f"Convolution tensor transpose shape: {convolution_tensor.shape} ... should be {(N, self.out_channels, int(len(kernel_positions)/N))}"
+            f"Convolution tensor transpose shape: {ct2.shape} ... should be {(N, self.out_channels, int(len(kernel_positions)/N))}"
         )
 
         # do reshape (N, 32, H*W) -> (N, 32, H, W)
 
         # What about th gradient here?
         if len(x.shape) == 4:
-            convolution_tensor = convolution_tensor.reshape(
-                N, self.out_channels, height_out, width_out
-            )
+            ct3 = ct2.reshape(N, self.out_channels, height_out, width_out)
         else:
-            convolution_tensor = convolution_tensor.reshape(
-                self.out_channels, height_out, width_out
-            )
+            ct3 = ct2.reshape(self.out_channels, height_out, width_out)
 
-        print(
-            f"Final shape: {convolution_tensor.shape} ... should be {expected_output_dimensions}"
-        )
+        print(f"Final shape: {ct3.shape} ... should be {expected_output_dimensions}")
 
-        return convolution_tensor
+        return ct3
 
     # TODO: Account for padding and dilation.
     def __get_kernel_position_slices_conv2d(
@@ -249,29 +235,37 @@ class Conv2d(Module):
                 "Incorrect shape: Either (N, in_channels, H, W) or (in_channels, H W)"
             )
 
-        # Calculate the positions for each instance in the batch.
+        # Unpack kernel dimensions and convolution parameters into individual parameters.
         kernel_channels, kernel_height, kernel_width = self._single_kernel_shape
+        stride_height, stride_width = self.stride
+        dilation_height, dilation_width = self.dilation
+        padding_height, padding_width = self.padding
 
+        # Calculate effective kernel size with dilation
+        dilated_kernel_height = (kernel_height - 1) * dilation_height + 1
+        dilated_kernel_width = (kernel_width - 1) * dilation_width + 1
+
+        # Calculate starting and ending positions for kernel placement
+        starting_height = -padding_height
+        starting_width = -padding_width
+        ending_height = height_in + padding_height - dilated_kernel_height + 1
+        ending_width = width_in + padding_width - dilated_kernel_width + 1
+
+        # Build kernel position slices with padding and dilation
         instance_kernel_positions = []
-        for h in range(0, height_in - kernel_height + 1, self.stride[0]):
-            for c in range(0, width_in - kernel_width + 1, self.stride[1]):
+        for h in range(starting_height, ending_height, stride_height):
+            for w in range(starting_width, ending_width, stride_width):
                 instance_kernel_positions.append(
                     (
-                        slice(0, kernel_channels),  # Number of channels
-                        slice(h, h + kernel_height),  # The height of the area
-                        slice(c, c + kernel_width),  # The width of the area
+                        slice(0, kernel_channels),  # Channel slice
+                        slice(
+                            h, h + dilated_kernel_height, dilation_height
+                        ),  # Height slice with dilation
+                        slice(
+                            w, w + dilated_kernel_width, dilation_width
+                        ),  # Width slice with dilation
                     )
                 )
-
-        # instance_kernel_positions = [
-        #     (
-        #         slice(0, kernel_channels),  # Number of channels
-        #         slice(h, h + kernel_height),  # The height of the area
-        #         slice(c, c + kernel_width),  # The width of the area
-        #     )
-        #     for h in range(0, height_in - kernel_height + 1, self.stride[0])
-        #     for c in range(0, width_in - kernel_width + 1, self.stride[1])
-        # ]
 
         if len(tensor_shape) == 4:
             instance_kernel_positions = [
@@ -280,7 +274,8 @@ class Conv2d(Module):
                 for position in instance_kernel_positions
             ]
 
-        height_out = len(range(0, height_in - kernel_height + 1, self.stride[0]))
-        width_out = len(range(0, width_in - kernel_width + 1, self.stride[1]))
+        # Calculate actual output dimensions for verification
+        height_out = len(range(starting_height, ending_height, stride_height))
+        width_out = len(range(starting_width, ending_width, stride_width))
 
         return tuple(instance_kernel_positions), height_out, width_out
