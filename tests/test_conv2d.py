@@ -1,3 +1,4 @@
+from math import prod
 import unittest
 import torch
 from match.nn import Conv2d
@@ -174,17 +175,23 @@ class TestConv2d(unittest.TestCase):
                 pytorch_output = pytorch_conv2d(ten_x)
 
                 # Backpropagation to calculate gradients
-                match_output.sum().backward()
-                pytorch_output.sum().backward()
+                match_sum = match_output.sum()
+                pytorch_sum = pytorch_output.sum()
+                match_sum.backward()
+                pytorch_sum.backward()
 
                 # Compare gradients (weights and input)
+                match_conv2d_kernel_grad = tensor.Tensor(data=match_conv2d._trainable_kernels.grad)
+                pytorch_conv2d_kernel_grad = pytorch_conv2d.weight.grad
+
+                # Check grads directly
                 self.assertTrue(
                     almost_equal(
-                        match_conv2d._trainable_kernels.T.reshape(
+                        match_conv2d_kernel_grad.T.reshape(
                             out_channels, in_channels, *kernel_size
                         ),
-                        pytorch_conv2d.weight,
-                        check_grad=True,
+                        pytorch_conv2d_kernel_grad,
+                        check_grad=False,
                     )
                 )
                 if bias:
@@ -260,6 +267,5 @@ class TestConv2d(unittest.TestCase):
 
                 pytorch_output = pytorch_conv2d(ten_x)
                 match_output = match_conv2d(mat_x)
-                
 
                 self.assertTrue(almost_equal(match_output, pytorch_output))
