@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Optional
 
 import numpy as np
 import match
@@ -146,12 +147,10 @@ class Conv2d(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         # Assume tensor is shape (N, in_channels, H, W) or (in_channels, H W)
-        
-
-        N = 1
-        if len(x.shape) == 4:
+        N = None
+        if x.dim() == 4:
             N, _, height_in, width_in = x.shape
-        elif len(x.shape) == 3:
+        elif x.dim() == 3:
             _, height_in, width_in = x.shape
         else:
             raise ValueError(
@@ -160,15 +159,16 @@ class Conv2d(Module):
 
         print(f"Shape of tensor input: {x.shape}")
 
-        expected_output_dimensions = self.get_expected_output_dimensions(x)
-        height_out, width_out = expected_output_dimensions[-2:]
-
         # Flatten kernel positions.
         # Each row represents a single placement of the kernel on the input tensor.
         # This flattens the 2D spatial positions into a single row per kernel placement.
         # The resulting shape is: (number of kernel positions in the input tensor, number of elements in the kernel)
 
-        kernel_positions, h, w = self.__get_kernel_position_slices_conv2d(x.shape)
+        kernel_positions, h, w = self.__get_kernel_position_slices_conv2d(height_in, width_in, N)
+        
+        expected_output_dimensions = self.get_expected_output_dimensions(x)
+        height_out, width_out = expected_output_dimensions[-2:]
+
         print(f"Actual height_out: {h} ... should be {height_out}")
         print(f"Actual width_out: {w} ... should be {width_out}")
         print(
@@ -221,19 +221,12 @@ class Conv2d(Module):
 
         return ct3
 
-    # TODO: Account for padding and dilation.
     def __get_kernel_position_slices_conv2d(
         self,
-        tensor_shape: tuple[int],
+        height_in: int,
+        width_in: int,
+        N: Optional[int] = None,
     ) -> tuple[slice]:
-        if len(tensor_shape) == 4:
-            N, _, height_in, width_in = tensor_shape
-        elif len(tensor_shape) == 3:
-            _, height_in, width_in = tensor_shape
-        else:
-            raise ValueError(
-                "Incorrect shape: Either (N, in_channels, H, W) or (in_channels, H W)"
-            )
 
         # Unpack kernel dimensions and convolution parameters into individual parameters.
         kernel_channels, kernel_height, kernel_width = self._single_kernel_shape
