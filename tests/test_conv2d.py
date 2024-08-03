@@ -202,7 +202,7 @@ class TestConv2d(unittest.TestCase):
                         )
                     )
 
-    def test_conv2d_various_shapes_and_strides(self):
+    def test_conv2d_various_shapes_and_strides_no_padding(self):
         """Gemini Generated, then modified."""
         configurations = [
             (2, 3, 5, (3, 3), 1, 0, 1),
@@ -268,3 +268,68 @@ class TestConv2d(unittest.TestCase):
                 match_output = match_conv2d(mat_x)
 
                 self.assertTrue(almost_equal(match_output, pytorch_output))
+    
+    # def test_conv2d_various_shapes_and_strides_with_padding(self):
+    #     """Gemini Generated, then modified."""
+    #     configurations = [
+    #         (2, 3, 5, (3, 3), 1, 1, 1),
+    #         (1, 3, 5, (12, 12), 1, 2, 1),
+    #         (2, 3, 5, (3, 3), 1, 2, (2, 3)),
+    #         (3, 4, 2, (2, 2), 1, 1, 1),
+    #         (1, 3, 5, (3, 2), 4, 1, 1),
+    #         (2, 3, 5, (1, 3), 1, 5, 2),
+    #     ]
+
+    #     for (
+    #         N,
+    #         in_channels,
+    #         out_channels,
+    #         kernel_size,
+    #         stride,
+    #         padding,
+    #         dilation,
+    #     ) in configurations:
+    #         with self.subTest(
+    #             N=N,
+    #             in_channels=in_channels,
+    #             out_channels=out_channels,
+    #             kernel_size=kernel_size,
+    #             stride=stride,
+    #             padding=padding,
+    #             dilation=dilation,
+    #         ):
+    #             match_conv2d = Conv2d(
+    #                 in_channels,
+    #                 out_channels,
+    #                 kernel_size,
+    #                 stride=stride,
+    #                 padding=padding,
+    #                 dilation=dilation,
+    #                 bias=False,
+    #             )
+    #             pytorch_conv2d = torch.nn.Conv2d(
+    #                 in_channels,
+    #                 out_channels,
+    #                 kernel_size,
+    #                 stride=stride,
+    #                 padding=padding,
+    #                 dilation=dilation,
+    #                 bias=False,
+    #             )
+
+    #             # Initialize with same weights
+    #             pytorch_conv2d.weight.data = torch.nn.Parameter(
+    #                 to_tensor(
+    #                     match_conv2d._trainable_kernels.T.reshape(
+    #                         out_channels, in_channels, *kernel_size
+    #                     )
+    #                 ),
+    #                 False,
+    #             )
+
+    #             mat_x, ten_x = mat_and_ten((N, in_channels, 12, 12))
+
+    #             pytorch_output = pytorch_conv2d(ten_x)
+    #             match_output = match_conv2d(mat_x)
+
+    #             self.assertTrue(almost_equal(match_output, pytorch_output))
