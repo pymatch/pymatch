@@ -29,8 +29,7 @@ class Conv2d(Module):
         self.padding: tuple | int = self.__initialize_position_variable(padding)
         self.dilation: tuple | int = self.__initialize_position_variable(dilation)
         self.groups: int = groups
-        self.padding_mode = "zeros"
-        self.use_numpy = use_numpy
+        self.padding_mode = padding_mode
         self.__initialize_kernels(kernel_size)
         self.__initialize_bias(bias)
 
