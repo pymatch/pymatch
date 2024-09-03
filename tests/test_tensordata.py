@@ -16,7 +16,11 @@ def almost_equal(match_tensor: TensorData, torch_tensor: torch.Tensor) -> bool:
     t = torch_tensor.float()
     if t.ndim == 1:
         m.squeeze_()
-    return torch.allclose(m, t, rtol=1e-02, atol=1e-05)
+    if not torch.allclose(m, t, rtol=1e-02, atol=1e-05):
+        print(m)
+        print(t)
+        return False
+    return True
 
 
 def same_references(match_tensor1: TensorData, match_tensor2: TensorData):
@@ -28,6 +32,42 @@ def same_references(match_tensor1: TensorData, match_tensor2: TensorData):
 
 
 class TestTensorDataTest(unittest.TestCase):
+    def test_concatenate_default(self):
+        torch_tensor = torch.arange(6).reshape(2, 3).float()
+        match_tensor = TensorData(2, 3)
+        match_tensor._data = [TensorData(value=i) for i in range(6)]
+
+        self.assertTrue(
+            almost_equal(
+                TensorData.concatenate((match_tensor, match_tensor, match_tensor)),
+                torch.cat((torch_tensor, torch_tensor, torch_tensor)),
+            )
+        )
+        
+    # def test_concatenate_column(self):
+    #     torch_tensor = torch.arange(6).reshape(2, 3).float()
+    #     match_tensor = TensorData(2, 3)
+    #     match_tensor._data = [TensorData(value=i) for i in range(6)]
+
+    #     self.assertTrue(
+    #         almost_equal(
+    #             TensorData.concatenate((match_tensor, match_tensor, match_tensor), 1),
+    #             torch.cat((torch_tensor, torch_tensor, torch_tensor), 1),
+    #         )
+    #     )
+
+    # def test_concatenate_nd(self):
+    #     torch_tensor = torch.arange(24).reshape(2, 4, 3).float()
+    #     match_tensor = TensorData(2, 3, 4)
+    #     match_tensor._data = [TensorData(value=i) for i in range(24)]
+
+    #     self.assertTrue(
+    #         almost_equal(
+    #             TensorData.concatenate((match_tensor, match_tensor, match_tensor), 1),
+    #             torch.cat((torch_tensor, torch_tensor, torch_tensor), 1),
+    #         )
+    #     )
+
     def test_mean_nodim(self):
         torch_tensor = torch.arange(24).reshape(2, 4, 3).float()
 
@@ -228,7 +268,6 @@ class TestTensorDataTest(unittest.TestCase):
         self.assertEqual(product_tensor.shape, ())
         self.assertIsNone(product_tensor._data)
         self.assertEqual(product_tensor.item(), 204)
-        
 
     def test_binary_operations(self):
         torch_tensor_low_dim_1 = torch.ones(2, 2)

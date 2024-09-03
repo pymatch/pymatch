@@ -1,13 +1,34 @@
+"""Pytorch Remake
+"""
+
+from math import prod
+from random import gauss
 from .tensor import Tensor, use_numpy
+import numpy as np
 
 if use_numpy:
     from .tensordata_numpy import TensorData
 else:
     from .tensordata import TensorData
-from .nn import *
-from math import prod
-from random import gauss
-import numpy as np
+
+
+def cat(tensors: list[Tensor], dim=0) -> Tensor:
+    """_summary_
+
+    Args:
+        tensors (list[Tensor]): _description_
+        dim (int, optional): _description_. Defaults to 0.
+
+    Returns:
+        Tensor: _description_
+    """
+    # Store the underlying TensorData objects.
+    tensordata_objects = [tensor.data for tensor in tensors]
+    # Concatenate the TensorData objects into a single object.
+    concatenated_tensordata_objects = TensorData.concatenate(
+        tensordatas=tensordata_objects, dim=dim
+    )
+    return Tensor(data=concatenated_tensordata_objects)
 
 
 def randn(*shape, generator=lambda: gauss(0, 1)) -> Tensor:

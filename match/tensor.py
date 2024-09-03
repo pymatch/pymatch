@@ -104,6 +104,10 @@ class Tensor:
 
         result._gradient = _gradient
         return result
+    
+    def dim(self) -> int:
+        """Return the dimension of the tensor."""
+        return len(self.data.shape)
 
     @property
     def numel(self) -> int:

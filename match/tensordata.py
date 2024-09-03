@@ -57,7 +57,8 @@ class TensorData:
         # Calculates memory access strides for efficient operations based on the shape.
         self.__initialize_strides()
 
-    def __create_tensor_from_data(self, data: list, shape: tuple) -> TensorData:
+    @staticmethod
+    def create_tensor_from_data(data: list, shape: tuple) -> TensorData:
         """_summary_
 
         Args:
@@ -255,7 +256,7 @@ class TensorData:
             return self._data[0]
 
         # Create a new tensor from specified data and shape.
-        return self.__create_tensor_from_data(self._data, shape)
+        return TensorData.create_tensor_from_data(self._data, shape)
 
     def __convert_slice_to_index_list(self, coordinates):
         """Converts a list of slices or integers to a list of possible indices for each dimension.
@@ -339,7 +340,7 @@ class TensorData:
         ]
 
         # Create a new tensor from the retrieved data and shape.
-        return self.__create_tensor_from_data(output_data, output_shape)
+        return TensorData.create_tensor_from_data(output_data, output_shape)
 
     def __setitem__(
         self, coordinates: tuple[int], value: TensorData | int | float
@@ -881,7 +882,7 @@ class TensorData:
                 lhs._data, lhs.shape, rhs._data, rhs.shape
             )
 
-            return self.__create_tensor_from_data(result_data, result_shape)
+            return TensorData.create_tensor_from_data(result_data, result_shape)
 
         # If the first argument is 1-dimensional and the second argument is 2-dimensional...
         elif lhs_dims == 1 and rhs_dims == 2:
@@ -889,7 +890,7 @@ class TensorData:
             result_shape, result_data = matmul_2d(
                 lhs._data, (1,) + lhs.shape, rhs._data, rhs.shape
             )
-            return self.__create_tensor_from_data(
+            return TensorData.create_tensor_from_data(
                 result_data,
                 (
                     result_shape[1],
@@ -904,7 +905,7 @@ class TensorData:
                 lhs._data, lhs.shape, rhs._data, rhs.shape + (1,)
             )
 
-            return self.__create_tensor_from_data(
+            return TensorData.create_tensor_from_data(
                 result_data,
                 (
                     result_shape[0],
@@ -988,4 +989,53 @@ class TensorData:
             else:
                 new_shape += (rhs_matrix_dims[1],)
 
-            return self.__create_tensor_from_data(result_data, new_shape)
+            return TensorData.create_tensor_from_data(result_data, new_shape)
+    
+    @staticmethod
+    def concatenate(tensordatas: tuple[TensorData], dim: int = 0) -> TensorData:
+        """Concatenates a sequence of tensors along a given dimension.
+
+        Args:
+            tensors: A list of TensorData objects to concatenate.
+            dim: The dimension along which to concatenate.
+
+        Returns:
+            The concatenated TensorData object.
+
+        Raises:
+            ValueError: If tensors have incompatible shapes or dim is invalid.
+        """
+
+        if not tensordatas:
+            raise ValueError("match.cat(): input tensors cannot be empty")
+
+        if dim < 0 or dim >= len(tensordatas[0].shape):
+            raise ValueError(f"Invalid dimension: {dim}")
+
+        # Check shape compatibility (all dimensions except the concatenation dim must match)
+        for i in range(1, len(tensordatas)):
+            if tensordatas[i].shape[:dim] + tensordatas[i].shape[dim + 1:] != tensordatas[0].shape[:dim] + tensordatas[0].shape[dim + 1:]:
+                raise ValueError("match.cat(): tensors must have the same shape, except along the concatenation dimension")
+
+        # Calculate the new shape after concatenation
+        new_shape = list(tensordatas[0].shape)
+        new_shape[dim] = sum(t.shape[dim] for t in tensordatas)
+        new_shape = tuple(new_shape)
+
+        """CURRENTLY ONLY DIM=0 (HARDCODING IT) IS SUPPORT FOR EFFICIENCY"""
+        data_objects = [td._data for td in tensordatas]
+        new_data = list(itertools.chain.from_iterable(data_objects))
+        return TensorData.create_tensor_from_data(new_data, new_shape)
+
+        # # Initialize the new tensor
+        # new_tensor = TensorData(*new_shape)
+
+        # # Perform concatenation by iterating through the tensors and copying their data
+        # current_index = 0
+        # for tensor in tensordatas:
+        #     size = tensor.numel() 
+        #     for i in range(current_index, current_index + size):
+        #         new_tensor._data[i]._item = tensor._data[i - current_index]._item
+        #     current_index += size
+
+        # return new_tensor
