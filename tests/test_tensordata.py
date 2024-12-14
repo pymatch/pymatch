@@ -1,44 +1,39 @@
 import unittest
 import torch
 from match.tensordata import TensorData
+from .base import BaseUnitTest
 import itertools
 
+class TestTensorDataTest(BaseUnitTest):
+    """Only run when use_numpy=false"""
+    def to_tensor(
+        self, match_tensor_data: TensorData, requires_grad=False, get_grad=False
+    ) -> torch.Tensor:
+        """
+        Overrides BaseUnitTest.to_tensor
+        """
+        torch_tensor = None
 
-def to_tensor(match_tensor: TensorData) -> torch.Tensor:
-    torch_tensor = torch.Tensor(size=match_tensor.shape).float()
-    for index in itertools.product(*[range(dim) for dim in match_tensor.shape]):
-        torch_tensor[index] = match_tensor[index].item()
-    return torch_tensor
+        if match_tensor_data._data is None:
+            torch_tensor = torch.tensor(data=match_tensor_data.item()).float()
+        else:
+            torch_tensor = torch.zeros(match_tensor_data.shape).float()
+            for index in itertools.product(
+                *[range(dim) for dim in match_tensor_data.shape]
+            ):
+                torch_tensor[index] = match_tensor_data[index].item()
 
-
-def almost_equal(match_tensor: TensorData, torch_tensor: torch.Tensor) -> bool:
-    m = to_tensor(match_tensor)
-    t = torch_tensor.float()
-    if t.ndim == 1:
-        m.squeeze_()
-    if not torch.allclose(m, t, rtol=1e-02, atol=1e-05):
-        print(m)
-        print(t)
-        return False
-    return True
-
-
-def same_references(match_tensor1: TensorData, match_tensor2: TensorData):
-    # check if they are the same object, which they should to match pytorch functionality
-    for e1, e2 in zip(match_tensor1._data, match_tensor2._data):
-        if e1 is not e2:
-            return False
-    return True
+        torch_tensor.requires_grad = requires_grad
+        return torch_tensor
 
 
-class TestTensorDataTest(unittest.TestCase):
     def test_concatenate_default(self):
         torch_tensor = torch.arange(6).reshape(2, 3).float()
         match_tensor = TensorData(2, 3)
         match_tensor._data = [TensorData(value=i) for i in range(6)]
 
         self.assertTrue(
-            almost_equal(
+            self.almost_equal(
                 TensorData.concatenate((match_tensor, match_tensor, match_tensor)),
                 torch.cat((torch_tensor, torch_tensor, torch_tensor)),
             )
@@ -50,7 +45,7 @@ class TestTensorDataTest(unittest.TestCase):
     #     match_tensor._data = [TensorData(value=i) for i in range(6)]
 
     #     self.assertTrue(
-    #         almost_equal(
+    #         self.almost_equal(
     #             TensorData.concatenate((match_tensor, match_tensor, match_tensor), 1),
     #             torch.cat((torch_tensor, torch_tensor, torch_tensor), 1),
     #         )
@@ -62,7 +57,7 @@ class TestTensorDataTest(unittest.TestCase):
     #     match_tensor._data = [TensorData(value=i) for i in range(24)]
 
     #     self.assertTrue(
-    #         almost_equal(
+    #         self.almost_equal(
     #             TensorData.concatenate((match_tensor, match_tensor, match_tensor), 1),
     #             torch.cat((torch_tensor, torch_tensor, torch_tensor), 1),
     #         )
@@ -83,7 +78,7 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor._data = [TensorData(value=i) for i in range(24)]
 
         self.assertTrue(
-            almost_equal(
+            self.almost_equal(
                 match_tensor.mean((1, 2), keepdims=True),
                 torch_tensor.mean((1, 2), keepdim=True),
             )
@@ -95,7 +90,7 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor = TensorData(2, 4, 3)
         match_tensor._data = [TensorData(value=i) for i in range(24)]
 
-        self.assertTrue(almost_equal(match_tensor.mean((0,)), torch_tensor.mean((0,))))
+        self.assertTrue(self.almost_equal(match_tensor.mean((0,)), torch_tensor.mean((0,))))
 
     def test_sum_nodim(self):
         torch_tensor = torch.arange(24).reshape(2, 4, 3)
@@ -112,7 +107,7 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor._data = [TensorData(value=i) for i in range(48)]
 
         self.assertTrue(
-            almost_equal(match_tensor.sum((1, 2)), torch_tensor.sum((1, 2)))
+            self.almost_equal(match_tensor.sum((1, 2)), torch_tensor.sum((1, 2)))
         )
 
     def test_sum_keepdim_2(self):
@@ -122,7 +117,7 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor._data = [TensorData(value=i) for i in range(48)]
 
         self.assertTrue(
-            almost_equal(
+            self.almost_equal(
                 match_tensor.sum((1, 2), keepdims=True),
                 torch_tensor.sum((1, 2), keepdims=True),
             )
@@ -135,7 +130,7 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor._data = [TensorData(value=i) for i in range(24)]
 
         self.assertTrue(
-            almost_equal(
+            self.almost_equal(
                 match_tensor.sum((1, 2), keepdims=True),
                 torch_tensor.sum((1, 2), keepdim=True),
             )
@@ -147,7 +142,7 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor = TensorData(2, 4, 3)
         match_tensor._data = [TensorData(value=i) for i in range(24)]
 
-        self.assertTrue(almost_equal(match_tensor.sum((0,)), torch_tensor.sum((0,))))
+        self.assertTrue(self.almost_equal(match_tensor.sum((0,)), torch_tensor.sum((0,))))
 
     def test_matmul_nd_1d(self):
         torch_tensor_1 = torch.arange(24).reshape(2, 4, 3)
@@ -164,7 +159,7 @@ class TestTensorDataTest(unittest.TestCase):
 
         self.assertEqual(product_tensor.shape, torch_result.shape)
 
-        self.assertTrue(almost_equal(product_tensor, torch_result))
+        self.assertTrue(self.almost_equal(product_tensor, torch_result))
         self.assertEqual(match_tensor_2.shape, (3,))
 
     def test_matmul_1d_nd(self):
@@ -182,7 +177,7 @@ class TestTensorDataTest(unittest.TestCase):
 
         self.assertEqual(product_tensor.shape, torch_result.shape)
 
-        self.assertTrue(almost_equal(product_tensor, torch_result))
+        self.assertTrue(self.almost_equal(product_tensor, torch_result))
         self.assertEqual(match_tensor_1.shape, (4,))
 
     def test_matmul_nd_nd(self):
@@ -200,7 +195,7 @@ class TestTensorDataTest(unittest.TestCase):
 
         self.assertEqual(product_tensor.shape, torch_result.shape)
 
-        self.assertTrue(almost_equal(product_tensor, torch_result))
+        self.assertTrue(self.almost_equal(product_tensor, torch_result))
 
     def test_matmul_2d_1d(self):
         torch_tensor_1 = torch.arange(56).reshape(7, 8)
@@ -218,7 +213,7 @@ class TestTensorDataTest(unittest.TestCase):
         self.assertEqual(product_tensor.shape, torch_result.shape)
         self.assertEqual(product_tensor._item, None)
 
-        self.assertTrue(almost_equal(product_tensor, torch_result))
+        self.assertTrue(self.almost_equal(product_tensor, torch_result))
 
     def test_matmul_1d_2d(self):
         torch_tensor_1 = torch.arange(8).reshape(8)
@@ -236,7 +231,7 @@ class TestTensorDataTest(unittest.TestCase):
         self.assertEqual(product_tensor.shape, torch_result.shape)
         self.assertEqual(product_tensor._item, None)
 
-        self.assertTrue(almost_equal(product_tensor, torch_result))
+        self.assertTrue(self.almost_equal(product_tensor, torch_result))
 
     def test_matmul_2d_2d(self):
         torch_tensor_1 = torch.arange(56).reshape(7, 8)
@@ -254,7 +249,7 @@ class TestTensorDataTest(unittest.TestCase):
         self.assertEqual(product_tensor.shape, torch_result.shape)
         self.assertEqual(product_tensor._item, None)
 
-        self.assertTrue(almost_equal(product_tensor, torch_result))
+        self.assertTrue(self.almost_equal(product_tensor, torch_result))
 
     def test_matmul_1d_1d(self):
         match_tensor_1 = TensorData(9)
@@ -288,7 +283,7 @@ class TestTensorDataTest(unittest.TestCase):
 
         # low low
         self.assertTrue(
-            almost_equal(
+            self.almost_equal(
                 match_tensor_low_dim_1 + match_tensor_low_dim_2,
                 torch_tensor_low_dim_1 + torch_tensor_low_dim_2,
             )
@@ -296,7 +291,7 @@ class TestTensorDataTest(unittest.TestCase):
 
         # singleton low
         self.assertTrue(
-            almost_equal(
+            self.almost_equal(
                 match_tensor_singleton + match_tensor_low_dim_2,
                 torch_tensor_singleton + torch_tensor_low_dim_2,
             )
@@ -310,7 +305,7 @@ class TestTensorDataTest(unittest.TestCase):
 
         # low high
         self.assertTrue(
-            almost_equal(
+            self.almost_equal(
                 match_tensor_low_dim_2 + match_tensor_high_dim,
                 torch_tensor_low_dim_2 + torch_tensor_high_dim,
             )
@@ -323,7 +318,7 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor = TensorData(3, 1, 3)
         match_tensor._data = [TensorData(value=i) for i in range(9)]
 
-        self.assertTrue(almost_equal(match_tensor.T, torch_tensor.T))
+        self.assertTrue(self.almost_equal(match_tensor.T, torch_tensor.T))
 
     def test_permute(self):
         # make torch tensor
@@ -333,7 +328,7 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor._data = [TensorData(value=i) for i in range(9)]
 
         self.assertTrue(
-            almost_equal(match_tensor.permute(2, 0, 1), torch_tensor.permute(2, 0, 1))
+            self.almost_equal(match_tensor.permute(2, 0, 1), torch_tensor.permute(2, 0, 1))
         )
 
     def test_reshape_1d_to_singleton(self):
@@ -383,7 +378,7 @@ class TestTensorDataTest(unittest.TestCase):
         self.assertEqual(match_tensor.shape, (2, 3, 4))
         self.assertEqual(match_tensor_reshaped.shape, (4, 3, 2))
         self.assertEqual(len(match_tensor._data), len(match_tensor_reshaped._data))
-        self.assertTrue(same_references(match_tensor, match_tensor_reshaped))
+        self.assertTrue(self.same_references(match_tensor, match_tensor_reshaped))
         self.assertRaises(IndexError, lambda: match_tensor_reshaped[1, 2, 3])
 
     def test_broadcast_failure(self):
@@ -405,7 +400,7 @@ class TestTensorDataTest(unittest.TestCase):
 
         self.assertEqual(match_tensor_broadcasted.shape, (3, 3))
         self.assertTrue(
-            almost_equal(match_tensor_broadcasted, torch_tensor_broadcasted)
+            self.almost_equal(match_tensor_broadcasted, torch_tensor_broadcasted)
         )
 
     def test_broadcast(self):
@@ -420,7 +415,7 @@ class TestTensorDataTest(unittest.TestCase):
 
         self.assertEqual(match_tensor_broadcasted.shape, (2, 2, 3, 3, 3))
         self.assertTrue(
-            almost_equal(match_tensor_broadcasted, torch_tensor_broadcasted)
+            self.almost_equal(match_tensor_broadcasted, torch_tensor_broadcasted)
         )
 
     def test_getitem_partial_index(self):
@@ -434,7 +429,7 @@ class TestTensorDataTest(unittest.TestCase):
         match_tensor_slice = match_tensor[1:]
 
         self.assertEqual(match_tensor_slice.shape, (2, 3, 3))
-        self.assertTrue(almost_equal(match_tensor_slice, torch_tensor_slice))
+        self.assertTrue(self.almost_equal(match_tensor_slice, torch_tensor_slice))
 
     def test_setitem_single_value_index(self):
         # make torch tensor
@@ -446,7 +441,7 @@ class TestTensorDataTest(unittest.TestCase):
         torch_tensor[2:] = 0
         match_tensor[2:] = 0
 
-        self.assertTrue(almost_equal(match_tensor, torch_tensor))
+        self.assertTrue(self.almost_equal(match_tensor, torch_tensor))
 
     def test_setitem_partial_index(self):
         # make torch tensor
@@ -458,7 +453,7 @@ class TestTensorDataTest(unittest.TestCase):
         torch_tensor[2:] = torch.zeros((1, 3, 3))
         match_tensor[2:] = TensorData(1, 3, 3)
 
-        self.assertTrue(almost_equal(match_tensor, torch_tensor))
+        self.assertTrue(self.almost_equal(match_tensor, torch_tensor))
 
     def test_setitem_slice(self):
         # make torch tensor
@@ -470,7 +465,7 @@ class TestTensorDataTest(unittest.TestCase):
         torch_tensor[:, 1::2] = torch.zeros((2, 2))
         match_tensor[:, 1::2] = TensorData(2, 2)
 
-        self.assertTrue(almost_equal(match_tensor, torch_tensor))
+        self.assertTrue(self.almost_equal(match_tensor, torch_tensor))
 
     def test_getitem_slice(self):
         match_tensor = TensorData(2, 4)
