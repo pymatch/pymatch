@@ -24,34 +24,58 @@ class Conv2d(Module):
     ) -> None:
         super().__init__()
         self.in_channels: int = in_channels
+        if self.in_channels < 0:
+            raise RuntimeError("in_channels must be non negative")
+
         self.out_channels: int = out_channels
+        if self.out_channels < 0:
+            raise RuntimeError("out_channels must be non negative")
+
+        self.__initialize_kernels(kernel_size)
+
         self.stride: tuple | int = self.__initialize_position_variable(stride)
+        if any(s <= 0 for s in self.stride):
+            raise RuntimeError(f"stride must be greater than 0, but got {self.stride}")
+
         self.padding: tuple | int = self.__initialize_position_variable(padding)
+        if any(p < 0 for p in self.padding):
+            raise RuntimeError(f"padding must be non negative, but got {self.padding}")
+
         self.dilation: tuple | int = self.__initialize_position_variable(dilation)
+        if any(d < 1 for d in self.dilation):
+            raise RuntimeError(
+                f"dilation must be greater than 0, but got {self.dilation}"
+            )
+
         self.groups: int = groups
         self.padding_mode = padding_mode
-        self.__initialize_kernels(kernel_size)
         self.__initialize_bias(bias)
 
     def __initialize_position_variable(self, val: tuple | int):
-        return val if isinstance(val, tuple) else (val, val)
+        val = val if isinstance(val, tuple) else (val, val)
+        if len(val) != 2:
+            raise RuntimeError(
+                "stride, padding, dilation should be a tuple of two ints. the first int is used for the height dimension, and the second int for the width dimension."
+            )
+        return val
 
     def __initialize_kernels(self, kernel_size: tuple | int) -> None:
         if isinstance(kernel_size, int):
             kernel_size = (kernel_size, kernel_size)
+        if len(kernel_size) != 2:
+            raise RuntimeError(
+                "kernel_size should be a tuple of two ints. the first int is used for the height dimension, and the second int for the width dimension."
+            )
+        if any(kernel_dim <= 0 for kernel_dim in kernel_size):
+            raise RuntimeError(
+                f"kernel size should be greater than zero, but got shape {kernel_size}"
+            )
         # Out channels is the number of kernels, so the true kernel is shape (filters, kernel_size, kernel_size)
         self._single_kernel_shape = (self.in_channels,) + kernel_size
         # Each column will be a single kernel, and we have out_channel columns.
         # The number of rows will be the number of elements in each kernel.
         self._trainable_kernels: Tensor = Tensor.randn(
             prod(self._single_kernel_shape), self.out_channels
-        )
-
-        print(
-            f"Shape of a single kernel (#channels, height, width): {self._single_kernel_shape}"
-        )
-        print(
-            f"Shape of a trainable kernel matrix (#elements in each kernel, #kernels): {self._trainable_kernels.shape}"
         )
 
     def __initialize_bias(self, bias: bool) -> None:
@@ -163,7 +187,9 @@ class Conv2d(Module):
         # This flattens the 2D spatial positions into a single row per kernel placement.
         # The resulting shape is: (number of kernel positions in the input tensor, number of elements in the kernel)
 
-        kernel_positions, h, w = self.__get_kernel_position_slices_conv2d(height_in, width_in, N)
+        kernel_positions, h, w = self.__get_kernel_position_slices_conv2d(
+            height_in, width_in, N
+        )
 
         expected_output_dimensions = self.get_expected_output_dimensions(x)
         height_out, width_out = expected_output_dimensions[-2:]
@@ -259,7 +285,7 @@ class Conv2d(Module):
                     )
                 )
 
-        if N: # if N is not None, the tensor is 4 dimensional
+        if N:  # if N is not None, the tensor is 4 dimensional
             instance_kernel_positions = [
                 (n,) + position
                 for n in range(N)

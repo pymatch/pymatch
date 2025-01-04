@@ -8,81 +8,151 @@ import numpy as np
 import random
 from .base import BaseUnitTest
 
+
 class TestConv2d(BaseUnitTest):
-    def test_conv2d_output_with_bias(self):
+    def test_conv2d_1d_tensor_failure(self):
+        match_tensor, _ = self.generate_tensor_pair((5,))
+        match_conv2d = Conv2d(
+            in_channels=1,
+            out_channels=3,
+            kernel_size=(3, 3),
+            bias=False,
+        )
+        with self.assertRaises(ValueError):
+            match_conv2d(match_tensor)
+
+    def test_conv2d_initialization_failure(self):
+        # Configuration format: (in_channels, out_channels, kernel_size, stride, padding, dilation)
+        configurations = [
+            (-1, 3, (3, 3), 1, 0, 1),  # Faulty in_channels (cannot be negative)
+            (3, -1, (3, 3), 1, 0, 1),  # Faulty out_channels (cannot be negative)
+            (3, 3, (0, 3), 1, 0, 1),  # Faulty kernel_size (0 in one dimension)
+            (3, 3, (-3, 3), 1, 0, 1),  # Faulty kernel_size (negative dimension)
+            (3, 3, (3, 3), 0, 0, 1),  # Faulty stride (0 is invalid)
+            (3, 3, (3, 3), -1, 0, 1),  # Faulty stride (negative value)
+            (3, 3, (3, 3), 1, -1, 1),  # Faulty padding (negative value)
+            (3, 3, (3, 3), 1, 0, 0),  # Faulty dilation (0 is invalid)
+            (3, 3, (3, 3), 1, 0, -1),  # Faulty dilation (negative value)
+            (3, 3, (3,), -1, 0, 1),  # Faulty kernel_size (tuple of length 1)
+            (3, 3, (3, 3), (1,), -1, 1),  # Faulty string (tuple of length 1)
+            (3, 3, (3, 3), 1, (1,), 0),  # Faulty padding (tuple of length 1)
+            (3, 3, (3, 3), 1, 0, (1,)),  # Faulty dilation (tuple of length 1)
+        ]
+        for (
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+        ) in configurations:
+            with self.subTest(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+            ):
+                with self.assertRaises(RuntimeError):
+                    Conv2d(
+                        in_channels=in_channels,
+                        out_channels=out_channels,
+                        kernel_size=kernel_size,
+                        stride=stride,
+                        padding=padding,
+                        dilation=dilation,
+                        bias=False,
+                    )
+
+    def test_conv2d_with_batch(self):
+        """Gemini Generated, then modified."""
+        in_channels = 3
+        out_channels = 5
+        batch_size = 4
+        kernel_size = (3, 3)
+
+        for bias in [True, False]:
+            with self.subTest(bias=bias):
+                match_conv2d = Conv2d(
+                    in_channels,
+                    out_channels,
+                    kernel_size,
+                    bias=bias,
+                )
+                pytorch_conv2d = torch.nn.Conv2d(
+                    in_channels,
+                    out_channels,
+                    kernel_size,
+                    bias=bias,
+                )
+
+                # Initialize layers with same weights and biases.
+                pytorch_conv2d.weight.data = torch.nn.Parameter(
+                    self.to_tensor(
+                        match_conv2d._trainable_kernels.T.reshape(
+                            out_channels, in_channels, *kernel_size
+                        )
+                    ),
+                    False,
+                )
+                if bias:
+                    pytorch_conv2d.bias.data = torch.nn.Parameter(
+                        self.to_tensor(match_conv2d._trainable_bias), False
+                    )
+
+                match_tensor, torch_tensor = self.generate_tensor_pair(
+                    (batch_size, in_channels, 8, 8)
+                )
+
+                match_output = match_conv2d(match_tensor)
+                torch_output = pytorch_conv2d(torch_tensor)
+
+                self.assertTrue(self.almost_equal(match_output, torch_output))
+
+    def test_conv2d_no_batch(self):
         """Gemini Generated, then modified."""
         in_channels = 3
         out_channels = 5
         kernel_size = (3, 3)
-        bias = True
 
-        match_conv2d = Conv2d(
-            in_channels,
-            out_channels,
-            kernel_size,
-            bias=bias,
-        )
-        pytorch_conv2d = torch.nn.Conv2d(
-            in_channels,
-            out_channels,
-            kernel_size,
-            bias=bias,
-        )
-
-        # Initialize both layers with the same weights and biases
-        pytorch_conv2d.weight.data = torch.nn.Parameter(
-            self.to_tensor(
-                match_conv2d._trainable_kernels.T.reshape(
-                    out_channels, in_channels, *kernel_size
+        for bias in [True, False]:
+            with self.subTest(bias=bias):
+                match_conv2d = Conv2d(
+                    in_channels,
+                    out_channels,
+                    kernel_size,
+                    bias=bias,
                 )
-            ),
-            False,
-        )
-        pytorch_conv2d.bias.data = torch.nn.Parameter(
-            self.to_tensor(match_conv2d._trainable_bias), False
-        )
-
-        mat_x, ten_x = self.generate_tensor_pair((in_channels, 8, 8))  # Batch size = 2
-
-        match_output = match_conv2d(mat_x)
-        pytorch_output = pytorch_conv2d(ten_x)
-        self.assertTrue(self.almost_equal(match_output, pytorch_output))
-
-    def test_conv2d_output_without_bias(self):
-        """Gemini Generated, then modified."""
-        in_channels = 3
-        out_channels = 5
-        kernel_size = (3, 3)
-        bias = False
-
-        match_conv2d = Conv2d(
-            in_channels,
-            out_channels,
-            kernel_size,
-            bias=bias,
-        )
-        pytorch_conv2d = torch.nn.Conv2d(
-            in_channels,
-            out_channels,
-            kernel_size,
-            bias=bias,
-        )
-
-        # Initialize both layers with the same weights (no bias this time)
-        pytorch_conv2d.weight.data = torch.nn.Parameter(
-            self.to_tensor(
-                match_conv2d._trainable_kernels.T.reshape(
-                    out_channels, in_channels, *kernel_size
+                pytorch_conv2d = torch.nn.Conv2d(
+                    in_channels,
+                    out_channels,
+                    kernel_size,
+                    bias=bias,
                 )
-            ),
-            False,
-        )
 
-        mat_x, ten_x = self.generate_tensor_pair((2, in_channels, 8, 8))
+                # Initialize layers with same weights and biases.
+                pytorch_conv2d.weight.data = torch.nn.Parameter(
+                    self.to_tensor(
+                        match_conv2d._trainable_kernels.T.reshape(
+                            out_channels, in_channels, *kernel_size
+                        )
+                    ),
+                    False,
+                )
+                if bias:
+                    pytorch_conv2d.bias.data = torch.nn.Parameter(
+                        self.to_tensor(match_conv2d._trainable_bias), False
+                    )
 
-        match_output = match_conv2d(mat_x)
-        pytorch_output = pytorch_conv2d(ten_x)
-        self.assertTrue(self.almost_equal(match_output, pytorch_output))
+                match_tensor, torch_tensor = self.generate_tensor_pair(
+                    (in_channels, 8, 8)
+                )
+
+                match_output = match_conv2d(match_tensor)
+                torch_output = pytorch_conv2d(torch_tensor)
+
+                self.assertTrue(self.almost_equal(match_output, torch_output))
 
     def test_conv2d_gradients(self):
         """Gemini Generated, then modified."""
@@ -131,7 +201,9 @@ class TestConv2d(BaseUnitTest):
                 pytorch_sum.backward()
 
                 # Compare gradients (weights and input)
-                match_conv2d_kernel_grad = tensor.Tensor(data=match_conv2d._trainable_kernels.grad)
+                match_conv2d_kernel_grad = tensor.Tensor(
+                    data=match_conv2d._trainable_kernels.grad
+                )
                 pytorch_conv2d_kernel_grad = pytorch_conv2d.weight.grad
 
                 # Check grads directly
@@ -219,7 +291,7 @@ class TestConv2d(BaseUnitTest):
                 match_output = match_conv2d(mat_x)
 
                 self.assertTrue(self.almost_equal(match_output, pytorch_output))
-    
+
     # def test_conv2d_various_shapes_and_strides_with_padding(self):
     #     """Gemini Generated, then modified."""
     #     configurations = [
