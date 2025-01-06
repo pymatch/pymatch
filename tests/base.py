@@ -112,6 +112,9 @@ class BaseUnitTest(unittest.TestCase):
         :param match_tensor2: The second tensor to compare
         :return: True if all elements in the tensors reference the same memory, False otherwise
         """
+        if match_tensor1._data == None and match_tensor2._data == None:
+            return match_tensor1 is match_tensor2
+        
         # Ensure both tensors have the same number of elements
         if len(match_tensor1._data) != len(match_tensor2._data):
             return False
