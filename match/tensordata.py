@@ -286,13 +286,16 @@ class TensorData:
 
             coordinate = coordinates[dim]  # Current coordinate for this dimension.
             if isinstance(coordinate, slice):
+                # Do not allow step size of 0.
+                if coordinate.step == 0:
+                    raise ValueError("slice step cannot be zero")
                 # If the coordinate is a slice, calculate the start, stop, and step values.
                 start = coordinate.start or 0
                 stop = coordinate.stop or self.shape[dim]
                 step = coordinate.step or 1
 
                 # Calculate the size of this dimension in the output shape.
-                output_shape.append(ceil((stop - start) / step))
+                output_shape.append(max(ceil((stop - start) / step), 0))
                 # Generate possible indices within the slice range.
                 possible_indices.append(range(start, stop, step))
 
@@ -342,9 +345,7 @@ class TensorData:
         # Create a new tensor from the retrieved data and shape.
         return TensorData.create_tensor_from_data(output_data, output_shape)
 
-    def __setitem__(
-        self, coordinates: tuple[int], value: TensorData | int | float
-    ) -> None:
+    def __setitem__(self, coordinates: tuple, value: TensorData | int | float) -> None:
         """Sets the value of a subtensor at the given coordinates.
 
         Args:
@@ -389,6 +390,10 @@ class TensorData:
                         value
                     )
             elif isinstance(value, TensorData):
+                if output_shape != value.shape:
+                    raise RuntimeError(
+                        f"The expanded size of the tensor must match the existing non-singleton dimension size. Target sizes: {output_shape}.  Tensor sizes: {value.shape}"
+                    )
                 # Assign values from another TensorData to multiple locations.
                 for index, item in zip(
                     itertools.product(*possible_indices), value._data
@@ -710,7 +715,6 @@ class TensorData:
 
         return new_tensor
 
-
     @property
     def T(self) -> TensorData:
         """Return an aliased TensorData object with the transpose of the tensor."""
@@ -733,7 +737,6 @@ class TensorData:
             # Iterate over all elements and set their values to the specified value.
             for td in self._data:
                 td._item = val
-
 
     def __binary_op(self, op: Callable, rhs: float | int | TensorData) -> TensorData:
         """Internal method to perform an element-wise binary operation on the TensorData object.
@@ -777,7 +780,6 @@ class TensorData:
             elem._item = op(lhs._data[i]._item, rhs._data[i]._item)
 
         return out
-
 
     def __add__(self, rhs: Union[float, int, TensorData]) -> TensorData:
         """Element-wise addition: self + rhs."""
@@ -990,7 +992,7 @@ class TensorData:
                 new_shape += (rhs_matrix_dims[1],)
 
             return TensorData.create_tensor_from_data(result_data, new_shape)
-    
+
     @staticmethod
     def concatenate(tensordatas: tuple[TensorData], dim: int = 0) -> TensorData:
         """Concatenates a sequence of tensors along a given dimension.
@@ -1014,8 +1016,13 @@ class TensorData:
 
         # Check shape compatibility (all dimensions except the concatenation dim must match)
         for i in range(1, len(tensordatas)):
-            if tensordatas[i].shape[:dim] + tensordatas[i].shape[dim + 1:] != tensordatas[0].shape[:dim] + tensordatas[0].shape[dim + 1:]:
-                raise ValueError("match.cat(): tensors must have the same shape, except along the concatenation dimension")
+            if (
+                tensordatas[i].shape[:dim] + tensordatas[i].shape[dim + 1 :]
+                != tensordatas[0].shape[:dim] + tensordatas[0].shape[dim + 1 :]
+            ):
+                raise ValueError(
+                    "match.cat(): tensors must have the same shape, except along the concatenation dimension"
+                )
 
         # Calculate the new shape after concatenation
         new_shape = list(tensordatas[0].shape)
@@ -1033,7 +1040,7 @@ class TensorData:
         # # Perform concatenation by iterating through the tensors and copying their data
         # current_index = 0
         # for tensor in tensordatas:
-        #     size = tensor.numel() 
+        #     size = tensor.numel()
         #     for i in range(current_index, current_index + size):
         #         new_tensor._data[i]._item = tensor._data[i - current_index]._item
         #     current_index += size
