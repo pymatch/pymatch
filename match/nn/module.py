@@ -75,7 +75,6 @@ class Module:
                     # Modules are intermediary nodes that could contain other modules or Tensors.
                     # Call paramaters on the Module attribute to seek more Tensor paramaters.
                     elif isinstance(attr, Module):
-                        print(attr_name)
                         for param in attr.parameters():
                             if id(param) not in seen_ids:
                                 params.append(param)
