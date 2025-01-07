@@ -39,7 +39,7 @@ class Module:
     def parameters(self) -> list[Tensor]:
         """Return a list of all parameters in the module.
 
-        Collect all parameters by searching attributes for Module objects via a BFS to account for nested parameters.
+        Collect all parameters by searching attributes for Module objects via a DFS to account for nested parameters.
         """
         params = []
         seen_ids = set()
@@ -49,7 +49,7 @@ class Module:
             current_attr = stack.pop()
 
             # Iterable attributes (e.g., list, tuple, set) could be nested structures containing other Modules or Tensors.
-            # Traverse into the nested structure to search for parameters using a Breadth First Search.
+            # Traverse into the nested structure to search for parameters using a Depth First Search.
             if isinstance(current_attr, (list, tuple, set)):
                 stack.extend(current_attr)
 
