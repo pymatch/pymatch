@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import numpy as np
 
-from collections import deque
 from match import Tensor
 
 
@@ -44,45 +43,49 @@ class Module:
         """
         params = []
         seen_ids = set()
-        queue = deque([self])
+        stack = [self]
 
-        while queue:
-            current_attr = queue.popleft()
-            # Traverse all attributes of the current object
-            for attr_name in dir(current_attr):
-                # Skip private/protected and callable attributes
-                if attr_name.startswith("__"):
-                    continue
+        while stack:
+            current_attr = stack.pop()
 
-                attr = getattr(current_attr, attr_name)
+            # Iterable attributes (e.g., list, tuple, set) could be nested structures containing other Modules or Tensors.
+            # Traverse into the nested structure to search for parameters using a Breadth First Search.
+            if isinstance(current_attr, (list, tuple, set)):
+                stack.extend(current_attr)
 
-                # Tensors are leaves of the parameter tree, so append to list of parameters.
-                if isinstance(attr, Tensor):
-                    if id(attr) not in seen_ids:
-                        params.append(attr)
-                        seen_ids.add(id(attr))
+            # Add dictionary values to the queue to search.
+            elif isinstance(current_attr, dict):
+                stack.extend(current_attr.values())
 
-                # Modules are intermediary nodes that could contain other modules or Tensors.
-                # Call paramaters on the Module attribute to seek more Tensor paramaters.
-                elif isinstance(attr, Module):
-                    print(attr_name)
-                    for param in attr.parameters():
-                        if id(param) not in seen_ids:
-                            params.append(param)
-                            seen_ids.add(id(param))
+            else:
+                # Traverse all attributes of the current object
+                for attr_name in dir(current_attr):
+                    # Skip private/protected and callable attributes
+                    if attr_name.startswith("__"):
+                        continue
 
-                # Iterable attributes (e.g., list, tuple, set) could be nested structures containing other Modules or Tensors.
-                # Traverse into the nested structure to search for parameters using a Breadth First Search.
-                elif isinstance(attr, (list, tuple, set)):
-                    queue.extend(attr)
+                    attr = getattr(current_attr, attr_name)
 
-                # Add dictionary values to the queue to search.
-                elif isinstance(attr, dict):
-                    queue.extend(attr.values())
+                    # Tensors are leaves of the parameter tree, so append to list of parameters.
+                    if isinstance(attr, Tensor):
+                        if id(attr) not in seen_ids:
+                            params.append(attr)
+                            seen_ids.add(id(attr))
 
-                # For custom nested objects, add to queue if it has attributes.
-                elif hasattr(attr, "__dict__"):
-                    queue.append(attr)
+                    # Modules are intermediary nodes that could contain other modules or Tensors.
+                    # Call paramaters on the Module attribute to seek more Tensor paramaters.
+                    elif isinstance(attr, Module):
+                        print(attr_name)
+                        for param in attr.parameters():
+                            if id(param) not in seen_ids:
+                                params.append(param)
+                                seen_ids.add(id(param))
+
+                    elif isinstance(attr, (list, tuple, set)):
+                        stack.extend(attr)
+
+                    elif isinstance(attr, dict):
+                        stack.extend(attr.values())
 
         return params
 
