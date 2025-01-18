@@ -38,8 +38,8 @@ class Conv2d(Module):
             raise RuntimeError(f"stride must be greater than 0, but got {self.stride}")
 
         self.padding: tuple | int = self.__initialize_position_variable(padding)
-        if any(p < 0 for p in self.padding):
-            raise RuntimeError(f"padding must be non negative, but got {self.padding}")
+        if any(p != 0 for p in self.padding):
+            raise NotImplementedError(f"padding is not supported yet. padding must be set to 0.")
 
         self.dilation: tuple | int = self.__initialize_position_variable(dilation)
         if any(d < 1 for d in self.dilation):
