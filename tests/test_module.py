@@ -1,10 +1,11 @@
 import random
 import unittest
 import match.nn
+from .base import BaseUnitTest
 from match import tensor, randn
 
 
-class TestModule(unittest.TestCase):
+class TestModule(BaseUnitTest):
     """
     Unit tests for Base Module
     """
