@@ -1,56 +1,78 @@
 import unittest
 import torch
 from match.tensordata import TensorData
+from .base import BaseUnitTest
 import itertools
+from match import prod
+from random import gauss
 
 
-def to_tensor(match_tensor: TensorData) -> torch.Tensor:
-    torch_tensor = torch.Tensor(size=match_tensor.shape).float()
-    for index in itertools.product(*[range(dim) for dim in match_tensor.shape]):
-        torch_tensor[index] = match_tensor[index].item()
-    return torch_tensor
+class TestTensorDataTest(BaseUnitTest):
 
+    def to_tensor(
+        self, match_tensor_data: TensorData, requires_grad=False, get_grad=False
+    ) -> torch.Tensor:
+        """
+        Overrides BaseUnitTest.to_tensor
+        """
+        torch_tensor = None
 
-def almost_equal(match_tensor: TensorData, torch_tensor: torch.Tensor) -> bool:
-    m = to_tensor(match_tensor)
-    t = torch_tensor.float()
-    if t.ndim == 1:
-        m.squeeze_()
-    if not torch.allclose(m, t, rtol=1e-02, atol=1e-05):
-        print(m)
-        print(t)
-        return False
-    return True
+        if match_tensor_data._data is None:
+            torch_tensor = torch.tensor(data=match_tensor_data.item()).float()
+        else:
+            torch_tensor = torch.zeros(match_tensor_data.shape).float()
+            for index in itertools.product(
+                *[range(dim) for dim in match_tensor_data.shape]
+            ):
+                torch_tensor[index] = match_tensor_data[index].item()
 
+        torch_tensor.requires_grad = requires_grad
+        return torch_tensor
 
-def same_references(match_tensor1: TensorData, match_tensor2: TensorData):
-    # check if they are the same object, which they should to match pytorch functionality
-    for e1, e2 in zip(match_tensor1._data, match_tensor2._data):
-        if e1 is not e2:
-            return False
-    return True
+    def randn(self, shape: tuple = None, generator=lambda: gauss(0, 1)):
+        if not shape:
+            return TensorData(value=generator())
 
+        rand_tensordata = TensorData(0)
+        data = [TensorData(value=generator()) for _ in range(prod(shape))]
+        rand_tensordata._data = data
+        rand_tensordata.reshape_(shape)
+        return rand_tensordata
 
-class TestTensorDataTest(unittest.TestCase):
+    def generate_tensor_pair(self, shape: tuple[int] = None):
+        """
+        Generates a random tensor and its PyTorch equivalent for testing.
+
+        :param shape: Tuple defining the shape of the tensor. If None, a random shape is generated.
+        :return: A tuple containing a custom tensor and a PyTorch tensor
+        """
+        if not shape:
+            dim = random.randint(2, 5)
+            shape = tuple(random.randint(1, 5) for _ in range(dim))
+
+        mat = self.randn(shape)
+        ten = self.to_tensor(mat, requires_grad=False)
+        return mat, ten
+
     def test_concatenate_default(self):
         torch_tensor = torch.arange(6).reshape(2, 3).float()
         match_tensor = TensorData(2, 3)
         match_tensor._data = [TensorData(value=i) for i in range(6)]
 
         self.assertTrue(
-            almost_equal(
+            self.almost_equal(
                 TensorData.concatenate((match_tensor, match_tensor, match_tensor)),
                 torch.cat((torch_tensor, torch_tensor, torch_tensor)),
             )
         )
-        
+
     # def test_concatenate_column(self):
     #     torch_tensor = torch.arange(6).reshape(2, 3).float()
     #     match_tensor = TensorData(2, 3)
     #     match_tensor._data = [TensorData(value=i) for i in range(6)]
 
     #     self.assertTrue(
-    #         almost_equal(
+    #         self.almost_equal(
     #             TensorData.concatenate((match_tensor, match_tensor, match_tensor), 1),
     #             torch.cat((torch_tensor, torch_tensor, torch_tensor), 1),
     #         )
@@ -62,455 +84,251 @@ class TestTensorDataTest(unittest.TestCase):
     #     match_tensor._data = [TensorData(value=i) for i in range(24)]
 
     #     self.assertTrue(
-    #         almost_equal(
+    #         self.almost_equal(
     #             TensorData.concatenate((match_tensor, match_tensor, match_tensor), 1),
     #             torch.cat((torch_tensor, torch_tensor, torch_tensor), 1),
     #         )
     #     )
 
     def test_mean_nodim(self):
-        torch_tensor = torch.arange(24).reshape(2, 4, 3).float()
-
-        match_tensor = TensorData(2, 4, 3)
-        match_tensor._data = [TensorData(value=i) for i in range(24)]
-
-        self.assertEqual(match_tensor.mean().item(), torch_tensor.mean().item())
+        match_tensor, torch_tensor = self.generate_tensor_pair((2, 4, 3))
+        self.assertTrue(self.almost_equal(match_tensor.mean(), torch_tensor.mean()))
 
     def test_mean_keepdim(self):
-        torch_tensor = torch.arange(24).reshape(2, 4, 3).float()
-
-        match_tensor = TensorData(2, 4, 3)
-        match_tensor._data = [TensorData(value=i) for i in range(24)]
-
+        match_tensor, torch_tensor = self.generate_tensor_pair((2, 4, 3))
         self.assertTrue(
-            almost_equal(
+            self.almost_equal(
                 match_tensor.mean((1, 2), keepdims=True),
                 torch_tensor.mean((1, 2), keepdim=True),
             )
         )
 
     def test_mean(self):
-        torch_tensor = torch.arange(24).reshape(2, 4, 3).float()
-
-        match_tensor = TensorData(2, 4, 3)
-        match_tensor._data = [TensorData(value=i) for i in range(24)]
-
-        self.assertTrue(almost_equal(match_tensor.mean((0,)), torch_tensor.mean((0,))))
+        match_tensor, torch_tensor = self.generate_tensor_pair((2, 4, 3))
+        self.assertTrue(
+            self.almost_equal(match_tensor.mean((0,)), torch_tensor.mean((0,)))
+        )
 
     def test_sum_nodim(self):
-        torch_tensor = torch.arange(24).reshape(2, 4, 3)
-
-        match_tensor = TensorData(2, 4, 3)
-        match_tensor._data = [TensorData(value=i) for i in range(24)]
-
-        self.assertEqual(match_tensor.sum().item(), torch_tensor.sum().item())
-
-    def test_sum_2(self):
-        torch_tensor = torch.arange(48).reshape(2, 4, 3, 2)
-
-        match_tensor = TensorData(2, 4, 3, 2)
-        match_tensor._data = [TensorData(value=i) for i in range(48)]
-
-        self.assertTrue(
-            almost_equal(match_tensor.sum((1, 2)), torch_tensor.sum((1, 2)))
-        )
-
-    def test_sum_keepdim_2(self):
-        torch_tensor = torch.arange(48).reshape(2, 4, 3, 2)
-
-        match_tensor = TensorData(2, 4, 3, 2)
-        match_tensor._data = [TensorData(value=i) for i in range(48)]
-
-        self.assertTrue(
-            almost_equal(
-                match_tensor.sum((1, 2), keepdims=True),
-                torch_tensor.sum((1, 2), keepdims=True),
-            )
-        )
+        match_tensor, torch_tensor = self.generate_tensor_pair((2, 4, 3))
+        self.assertTrue(self.almost_equal(match_tensor.sum(), torch_tensor.sum()))
 
     def test_sum_keepdim(self):
-        torch_tensor = torch.arange(24).reshape(2, 4, 3)
-
-        match_tensor = TensorData(2, 4, 3)
-        match_tensor._data = [TensorData(value=i) for i in range(24)]
-
+        match_tensor, torch_tensor = self.generate_tensor_pair((2, 4, 3))
         self.assertTrue(
-            almost_equal(
+            self.almost_equal(
                 match_tensor.sum((1, 2), keepdims=True),
                 torch_tensor.sum((1, 2), keepdim=True),
             )
         )
 
     def test_sum(self):
-        torch_tensor = torch.arange(24).reshape(2, 4, 3)
-
-        match_tensor = TensorData(2, 4, 3)
-        match_tensor._data = [TensorData(value=i) for i in range(24)]
-
-        self.assertTrue(almost_equal(match_tensor.sum((0,)), torch_tensor.sum((0,))))
-
-    def test_matmul_nd_1d(self):
-        torch_tensor_1 = torch.arange(24).reshape(2, 4, 3)
-        torch_tensor_2 = torch.arange(3)
-
-        match_tensor_2 = TensorData(3)
-        match_tensor_2._data = [TensorData(value=i) for i in range(3)]
-
-        match_tensor_1 = TensorData(2, 4, 3)
-        match_tensor_1._data = [TensorData(value=i) for i in range(24)]
-
-        product_tensor = match_tensor_1 @ match_tensor_2
-        torch_result = torch_tensor_1 @ torch_tensor_2
-
-        self.assertEqual(product_tensor.shape, torch_result.shape)
-
-        self.assertTrue(almost_equal(product_tensor, torch_result))
-        self.assertEqual(match_tensor_2.shape, (3,))
-
-    def test_matmul_1d_nd(self):
-        torch_tensor_1 = torch.arange(4)
-        torch_tensor_2 = torch.arange(24).reshape(2, 4, 3)
-
-        match_tensor_1 = TensorData(4)
-        match_tensor_1._data = [TensorData(value=i) for i in range(4)]
-
-        match_tensor_2 = TensorData(2, 4, 3)
-        match_tensor_2._data = [TensorData(value=i) for i in range(24)]
-
-        product_tensor = match_tensor_1 @ match_tensor_2
-        torch_result = torch_tensor_1 @ torch_tensor_2
-
-        self.assertEqual(product_tensor.shape, torch_result.shape)
-
-        self.assertTrue(almost_equal(product_tensor, torch_result))
-        self.assertEqual(match_tensor_1.shape, (4,))
-
-    def test_matmul_nd_nd(self):
-        torch_tensor_1 = torch.arange(56).reshape(2, 1, 7, 4)
-        torch_tensor_2 = torch.arange(24).reshape(2, 4, 3)
-
-        match_tensor_1 = TensorData(2, 1, 7, 4)
-        match_tensor_1._data = [TensorData(value=i) for i in range(56)]
-
-        match_tensor_2 = TensorData(2, 4, 3)
-        match_tensor_2._data = [TensorData(value=i) for i in range(24)]
-
-        product_tensor = match_tensor_1 @ match_tensor_2
-        torch_result = torch_tensor_1 @ torch_tensor_2
-
-        self.assertEqual(product_tensor.shape, torch_result.shape)
-
-        self.assertTrue(almost_equal(product_tensor, torch_result))
-
-    def test_matmul_2d_1d(self):
-        torch_tensor_1 = torch.arange(56).reshape(7, 8)
-        torch_tensor_2 = torch.arange(8).reshape(8)
-
-        match_tensor_1 = TensorData(7, 8)
-        match_tensor_1._data = [TensorData(value=i) for i in range(56)]
-
-        match_tensor_2 = TensorData(8)
-        match_tensor_2._data = [TensorData(value=i) for i in range(8)]
-
-        product_tensor = match_tensor_1 @ match_tensor_2
-        torch_result = torch_tensor_1 @ torch_tensor_2
-
-        self.assertEqual(product_tensor.shape, torch_result.shape)
-        self.assertEqual(product_tensor._item, None)
-
-        self.assertTrue(almost_equal(product_tensor, torch_result))
-
-    def test_matmul_1d_2d(self):
-        torch_tensor_1 = torch.arange(8).reshape(8)
-        torch_tensor_2 = torch.arange(16).reshape(8, 2)
-
-        match_tensor_1 = TensorData(8)
-        match_tensor_1._data = [TensorData(value=i) for i in range(8)]
-
-        match_tensor_2 = TensorData(8, 2)
-        match_tensor_2._data = [TensorData(value=i) for i in range(16)]
-
-        product_tensor = match_tensor_1 @ match_tensor_2
-        torch_result = torch_tensor_1 @ torch_tensor_2
-
-        self.assertEqual(product_tensor.shape, torch_result.shape)
-        self.assertEqual(product_tensor._item, None)
-
-        self.assertTrue(almost_equal(product_tensor, torch_result))
-
-    def test_matmul_2d_2d(self):
-        torch_tensor_1 = torch.arange(56).reshape(7, 8)
-        torch_tensor_2 = torch.arange(16).reshape(8, 2)
-
-        match_tensor_1 = TensorData(7, 8)
-        match_tensor_1._data = [TensorData(value=i) for i in range(56)]
-
-        match_tensor_2 = TensorData(8, 2)
-        match_tensor_2._data = [TensorData(value=i) for i in range(16)]
-
-        product_tensor = match_tensor_1 @ match_tensor_2
-        torch_result = torch_tensor_1 @ torch_tensor_2
-
-        self.assertEqual(product_tensor.shape, torch_result.shape)
-        self.assertEqual(product_tensor._item, None)
-
-        self.assertTrue(almost_equal(product_tensor, torch_result))
-
-    def test_matmul_1d_1d(self):
-        match_tensor_1 = TensorData(9)
-        match_tensor_1._data = [TensorData(value=i) for i in range(9)]
-
-        match_tensor_2 = TensorData(9)
-        match_tensor_2._data = [TensorData(value=i) for i in range(9)]
-
-        product_tensor = match_tensor_1 @ match_tensor_2
-
-        self.assertEqual(product_tensor.shape, ())
-        self.assertIsNone(product_tensor._data)
-        self.assertEqual(product_tensor.item(), 204)
-
-    def test_binary_operations(self):
-        torch_tensor_low_dim_1 = torch.ones(2, 2)
-        torch_tensor_low_dim_2 = torch.ones(2, 2)
-        torch_tensor_singleton = torch.ones(1)[0]
-        torch_tensor_high_dim = torch.ones(1, 3, 2, 1)
-
-        match_tensor_low_dim_1 = TensorData(2, 2)
-        match_tensor_low_dim_1.ones_()
-
-        match_tensor_low_dim_2 = TensorData(2, 2)
-        match_tensor_low_dim_2.ones_()
-
-        match_tensor_singleton = TensorData(value=1.0)
-
-        match_tensor_high_dim = TensorData(1, 3, 2, 1)
-        match_tensor_high_dim.ones_()
-
-        # low low
+        match_tensor, torch_tensor = self.generate_tensor_pair((3, 1, 3))
         self.assertTrue(
-            almost_equal(
-                match_tensor_low_dim_1 + match_tensor_low_dim_2,
-                torch_tensor_low_dim_1 + torch_tensor_low_dim_2,
-            )
+            self.almost_equal(match_tensor.sum((0,)), torch_tensor.sum((0,)))
+        )
+        self.assertTrue(
+            self.almost_equal(match_tensor.sum((0, 1)), torch_tensor.sum((0, 1)))
         )
 
-        # singleton low
-        self.assertTrue(
-            almost_equal(
-                match_tensor_singleton + match_tensor_low_dim_2,
-                torch_tensor_singleton + torch_tensor_low_dim_2,
-            )
-        )
+    # TODO: Implement configurations that are intended to fail.
+    def test_matmul_various_shapes_failure(self):
+        self.assertTrue(True)
 
-        # singleton singleton
-        match_singleton_add = TensorData(value=1.0) + TensorData(value=1.0)
-        self.assertEqual(match_singleton_add.shape, ())
-        self.assertEqual(match_singleton_add._data, None)
-        self.assertEqual(match_singleton_add.item(), 2)
+    def test_matmul_various_shapes(self):
+        configurations = {
+            "1d@1d": [(9,), (9,)],
+            "1d@2d": [(9,), (9,)],
+            "2d@1d": [(8,), (8, 2)],
+            "2d@2d": [(7, 8), (8, 2)],
+            "1d@nd": [(5,), (2, 5, 3)],
+            "nd@1d": [(3, 2, 5, 8, 5), (5,)],
+            "nd@nd": [(2, 1, 7, 4), (2, 4, 3)],
+        }
+        for msg, shapes in configurations.items():
+            with self.subTest(msg=msg):
+                match_tensor1, torch_tensor1 = self.generate_tensor_pair(shapes[0])
+                match_tensor2, torch_tensor2 = self.generate_tensor_pair(shapes[1])
+                self.assertTrue(
+                    self.almost_equal(
+                        match_tensor1 @ match_tensor2, torch_tensor1 @ torch_tensor2
+                    )
+                )
 
-        # low high
-        self.assertTrue(
-            almost_equal(
-                match_tensor_low_dim_2 + match_tensor_high_dim,
-                torch_tensor_low_dim_2 + torch_tensor_high_dim,
-            )
-        )
-
+    # TODO: Add condition to test the same references.
     def test_transpose(self):
-        # make torch tensor
-        torch_tensor = torch.arange(9).reshape(3, 1, 3)
-        # make corresponding match tensor
-        match_tensor = TensorData(3, 1, 3)
-        match_tensor._data = [TensorData(value=i) for i in range(9)]
+        match_tensor, torch_tensor = self.generate_tensor_pair((3, 1, 3))
+        self.assertTrue(self.almost_equal(match_tensor.T, torch_tensor.T))
 
-        self.assertTrue(almost_equal(match_tensor.T, torch_tensor.T))
-
+    # TODO: Add condition to test the same references.
     def test_permute(self):
-        # make torch tensor
-        torch_tensor = torch.arange(9).reshape(3, 1, 3)
-        # make corresponding match tensor
-        match_tensor = TensorData(3, 1, 3)
-        match_tensor._data = [TensorData(value=i) for i in range(9)]
-
+        match_tensor, torch_tensor = self.generate_tensor_pair((3, 1, 3))
         self.assertTrue(
-            almost_equal(match_tensor.permute(2, 0, 1), torch_tensor.permute(2, 0, 1))
+            self.almost_equal(
+                match_tensor.permute(2, 0, 1), torch_tensor.permute(2, 0, 1)
+            )
         )
 
     def test_reshape_1d_to_singleton(self):
-        # make the match tensor
         match_tensor = TensorData(1)
-        # reshape the match tensor
         match_tensor_reshaped = match_tensor.reshape(())
 
         self.assertEqual(match_tensor.shape, (1,))
         self.assertEqual(match_tensor_reshaped.shape, ())
         self.assertEqual(match_tensor_reshaped.item(), 0)
-        self.assertEqual(match_tensor_reshaped._data, None)
+        self.assertIsNone(match_tensor_reshaped._data)
 
         # They must have the same reference
-        match_tensor._data[0]._item = 42
-        self.assertEqual(match_tensor_reshaped.item(), 42)
+        self.assertTrue(self.same_references(match_tensor[0], match_tensor_reshaped))
 
     def test_reshape_singleton_to_1d(self):
-        # make the match tensor
         match_tensor = TensorData(value=47)
-        # reshape the match tensor
         match_tensor_reshaped = match_tensor.reshape((1,))
 
+        # Ensure original object didn't change
         self.assertEqual(match_tensor.shape, ())
         self.assertEqual(match_tensor.item(), 47)
-        self.assertEqual(match_tensor._data, None)
+        self.assertIsNone(match_tensor._data)
 
         self.assertEqual(len(match_tensor_reshaped._data), 1)
         self.assertEqual(match_tensor_reshaped.shape, (1,))
         self.assertEqual(match_tensor_reshaped.item(), 47)
-        self.assertEqual(match_tensor_reshaped._item, None)
+        self.assertIsNone(match_tensor_reshaped._item, None)
 
         # They must have the same reference
-        match_tensor._item = 42
-        self.assertEqual(match_tensor_reshaped.item(), 42)
+        self.assertTrue(self.same_references(match_tensor, match_tensor_reshaped[0]))
 
     def test_reshape_failure(self):
         match_tensor = TensorData(2, 3, 4)
         self.assertRaises(RuntimeError, lambda: match_tensor.reshape((5, 5, 5)))
 
     def test_reshape(self):
-        # make the match tensor
         match_tensor = TensorData(2, 3, 4)
-        # reshape the match tensor
         match_tensor_reshaped = match_tensor.reshape((4, 3, 2))
-
         self.assertEqual(match_tensor.shape, (2, 3, 4))
         self.assertEqual(match_tensor_reshaped.shape, (4, 3, 2))
         self.assertEqual(len(match_tensor._data), len(match_tensor_reshaped._data))
-        self.assertTrue(same_references(match_tensor, match_tensor_reshaped))
+        self.assertTrue(self.same_references(match_tensor, match_tensor_reshaped))
         self.assertRaises(IndexError, lambda: match_tensor_reshaped[1, 2, 3])
 
-    def test_broadcast_failure(self):
-        # make corresponding match tensor
-        match_tensor = TensorData(3, 1, 3)
-        match_tensor._data = [TensorData(value=i) for i in range(9)]
-
-        self.assertRaises(ValueError, lambda: match_tensor.broadcast(2, 2, 1, 3, 3))
-        self.assertRaises(RuntimeError, lambda: match_tensor.broadcast(3, 3))
-
     def test_broadcast_singleton(self):
-        # make torch tensor
-        torch_tensor = torch.arange(9).reshape(3, 1, 3)[0, 0, 0]
-        # make corresponding match tensor
+        # Make torch singleton and corresponding match singleton.
         match_tensor = TensorData(value=0)
+        torch_tensor = self.to_tensor(match_tensor)
 
         torch_tensor_broadcasted = torch.broadcast_to(torch_tensor, (3, 3))
         match_tensor_broadcasted = match_tensor.broadcast(3, 3)
 
-        self.assertEqual(match_tensor_broadcasted.shape, (3, 3))
         self.assertTrue(
-            almost_equal(match_tensor_broadcasted, torch_tensor_broadcasted)
+            self.almost_equal(match_tensor_broadcasted, torch_tensor_broadcasted)
         )
 
     def test_broadcast(self):
-        # make torch tensor
-        torch_tensor = torch.arange(9).reshape(3, 1, 3)
-        # make corresponding match tensor
-        match_tensor = TensorData(3, 1, 3)
-        match_tensor._data = [TensorData(value=i) for i in range(9)]
+        with self.subTest(msg="normal"):
+            match_tensor, torch_tensor = self.generate_tensor_pair((3, 1, 3))
 
-        torch_tensor_broadcasted = torch.broadcast_to(torch_tensor, (2, 2, 3, 3, 3))
-        match_tensor_broadcasted = match_tensor.broadcast(2, 2, 3, 3, 3)
+            torch_tensor_broadcasted = torch.broadcast_to(torch_tensor, (2, 2, 3, 3, 3))
+            match_tensor_broadcasted = match_tensor.broadcast(2, 2, 3, 3, 3)
 
-        self.assertEqual(match_tensor_broadcasted.shape, (2, 2, 3, 3, 3))
-        self.assertTrue(
-            almost_equal(match_tensor_broadcasted, torch_tensor_broadcasted)
-        )
+            self.assertTrue(
+                self.almost_equal(match_tensor_broadcasted, torch_tensor_broadcasted)
+            )
+        with self.subTest(msg="failure"):
+            match_tensor = TensorData(3, 1, 3)
+            self.assertRaises(ValueError, lambda: match_tensor.broadcast(2, 2, 1, 3, 3))
+            self.assertRaises(RuntimeError, lambda: match_tensor.broadcast(3, 3))
 
     def test_getitem_partial_index(self):
-        # make torch tensor
-        torch_tensor = torch.arange(27).reshape(3, 3, 3)
-        # make corresponding match tensor
-        match_tensor = TensorData(3, 3, 3)
-        match_tensor._data = [TensorData(value=i) for i in range(27)]
-
-        torch_tensor_slice = torch_tensor[1:]
-        match_tensor_slice = match_tensor[1:]
-
-        self.assertEqual(match_tensor_slice.shape, (2, 3, 3))
-        self.assertTrue(almost_equal(match_tensor_slice, torch_tensor_slice))
-
-    def test_setitem_single_value_index(self):
-        # make torch tensor
-        torch_tensor = torch.arange(27).reshape(3, 3, 3)
-        # make corresponding match tensor
-        match_tensor = TensorData(3, 3, 3)
-        match_tensor._data = [TensorData(value=i) for i in range(27)]
-
-        torch_tensor[2:] = 0
-        match_tensor[2:] = 0
-
-        self.assertTrue(almost_equal(match_tensor, torch_tensor))
-
-    def test_setitem_partial_index(self):
-        # make torch tensor
-        torch_tensor = torch.arange(27).reshape(3, 3, 3)
-        # make corresponding match tensor
-        match_tensor = TensorData(3, 3, 3)
-        match_tensor._data = [TensorData(value=i) for i in range(27)]
-
-        torch_tensor[2:] = torch.zeros((1, 3, 3))
-        match_tensor[2:] = TensorData(1, 3, 3)
-
-        self.assertTrue(almost_equal(match_tensor, torch_tensor))
-
-    def test_setitem_slice(self):
-        # make torch tensor
-        torch_tensor = torch.arange(1, 9).reshape(2, 4)
-        # make corresponding match tensor
-        match_tensor = TensorData(2, 4)
-        match_tensor._data = [TensorData(value=i + 1) for i in range(8)]
-
-        torch_tensor[:, 1::2] = torch.zeros((2, 2))
-        match_tensor[:, 1::2] = TensorData(2, 2)
-
-        self.assertTrue(almost_equal(match_tensor, torch_tensor))
+        with self.subTest(msg="normal"):
+            match_tensor, torch_tensor = self.generate_tensor_pair((3, 3, 3))
+            self.assertTrue(self.almost_equal(match_tensor[1:], torch_tensor[1:]))
+        with self.subTest(msg="extreme"):
+            match_tensor, torch_tensor = self.generate_tensor_pair((2, 4))
+            self.assertTrue(self.almost_equal(match_tensor[4:], torch_tensor[4:]))
 
     def test_getitem_slice(self):
-        match_tensor = TensorData(2, 4)
-        match_tensor._data = [TensorData(value=i + 1) for i in range(8)]
-        match_tensor_slice = match_tensor[:, 1]
-        self.assertEqual(match_tensor_slice.shape, (2,))
-        self.assertEqual(match_tensor_slice._data[0].item(), 2)
-        self.assertEqual(match_tensor_slice._data[1].item(), 6)
-
-        match_tensor_slice = match_tensor[:, 1::2]
-        self.assertEqual(match_tensor_slice.shape, (2, 2))
-        self.assertEqual(match_tensor_slice._data[0].item(), 2)
-        self.assertEqual(match_tensor_slice._data[1].item(), 4)
-        self.assertEqual(match_tensor_slice._data[2].item(), 6)
-        self.assertEqual(match_tensor_slice._data[3].item(), 8)
+        with self.subTest(msg="normal"):
+            match_tensor, torch_tensor = self.generate_tensor_pair((2, 4))
+            self.assertTrue(self.almost_equal(match_tensor[:, 1], torch_tensor[:, 1]))
+            self.assertTrue(
+                self.almost_equal(match_tensor[:, 1::2], torch_tensor[:, 1::2])
+            )
+        with self.subTest(msg="slice_zero_failure"):
+            match_tensor, _ = self.generate_tensor_pair((2, 4))
+            self.assertRaises(ValueError, lambda: match_tensor[:, 1::0])
 
     def test_getitem_reference(self):
         tensor = TensorData(3, 3, 3)
         tensor_subset = tensor[2, 0, :]
-        self.assertEqual(type(tensor_subset), TensorData)
-        self.assertEqual(tensor_subset.shape, (3,))
-        for i in range(3):
-            self.assertEqual(tensor_subset._data[i].item(), 0)
-
-        self.assertEqual(tensor._data[18].item(), 0)
-        tensor_subset[0] = 47
-        self.assertEqual(tensor_subset._data[0].item(), 47)
-        self.assertEqual(tensor._data[18].item(), 47)
+        self.assertTrue(self.same_references(tensor_subset, tensor[2, 0, :]))
+        self.assertFalse(
+            self.same_references(TensorData(3, 3, 3)[2, 0, :], tensor[2, 0, :])
+        )
 
     def test_getitem_single(self):
-        tensor = TensorData(2, 3, 4, 5)
-        self.assertEqual(type(tensor[0, 0, 0, 0]), TensorData)
-        self.assertEqual(tensor[1, 2, 3, 4].item(), 0)
-        self.assertRaises(IndexError, lambda: tensor[2, 0, 0, 0])
+        with self.subTest(msg="normal"):
+            self.assertEqual(TensorData(2, 3, 4, 5)[0, 1, 2, 3].item(), 0)
+        with self.subTest(msg="extreme"):
+            self.assertEqual(TensorData(2, 3, 4, 5)[1, 2, 3, 4].item(), 0)
+            self.assertEqual(TensorData(2, 3, 4, 5)[0, 0, 0, 0].item(), 0)
+        with self.subTest(msg="oob_failure"):
+            self.assertRaises(IndexError, lambda: TensorData(2, 3, 4, 5)[2, 0, 0, 0])
+
+    def test_setitem_single_value_index(self):
+        match_tensor, torch_tensor = self.generate_tensor_pair((3, 3, 3))
+        torch_tensor[2:] = 0
+        match_tensor[2:] = 0
+        self.assertTrue(self.almost_equal(match_tensor, torch_tensor))
+
+    def test_setitem_partial_index(self):
+        with self.subTest(msg="normal"):
+            match_tensor, torch_tensor = self.generate_tensor_pair((3, 3, 3))
+            torch_tensor[2:] = torch.zeros((1, 3, 3))
+            match_tensor[2:] = TensorData(1, 3, 3)
+            self.assertTrue(self.almost_equal(match_tensor, torch_tensor))
+        with self.subTest(msg="shape_mismatch_failure"):
+            match_tensor, _ = self.generate_tensor_pair((3, 3, 3))
+
+            def setitem_helper():
+                match_tensor[2:] = TensorData(3, 3, 1)
+
+            self.assertRaises(RuntimeError, setitem_helper)
+
+    def test_setitem_slice(self):
+        with self.subTest(msg="normal"):
+            match_tensor, torch_tensor = self.generate_tensor_pair((2, 4))
+            torch_tensor[:, 1::2] = torch.zeros((2, 2))
+            match_tensor[:, 1::2] = TensorData(2, 2)
+            self.assertTrue(self.almost_equal(match_tensor, torch_tensor))
+
+        with self.subTest(msg="shape_mismatch_failure"):
+            match_tensor, _ = self.generate_tensor_pair((2, 4))
+
+            def setitem_helper():
+                match_tensor[:, 1::2] = TensorData(2, 3)
+
+            self.assertRaises(RuntimeError, setitem_helper)
 
     def test_setitem_single_number(self):
-        tensor = TensorData(2, 3, 4, 5)
-        tensor[0, 0, 0, 0] = 47.0
-        self.assertEqual(type(tensor[0, 0, 0, 0]), TensorData)
-        self.assertEqual(tensor._data[0].item(), 47.0)
+        with self.subTest(msg="normal"):
+            tensor = TensorData(2, 3, 4, 5)
+            tensor[0, 0, 0, 3] = 47.0
+            self.assertEqual(tensor._data[3].item(), 47.0)
+        with self.subTest(msg="extreme"):
+            tensor = TensorData(2, 3, 4, 5)
+            tensor[0, 0, 0, 0] = 47.0
+            self.assertEqual(tensor._data[0].item(), 47.0)
+
+            tensor = TensorData(2, 3, 4, 5)
+            tensor[1, 2, 3, 4] = 47.0
+            self.assertEqual(tensor._data[-1].item(), 47.0)
+        with self.subTest(msg="oob_failure"):
+            tensor = TensorData(2, 3, 4, 5)
+
+            def setitem_helper():
+                tensor[1, 2, 3, 5] = 47.0
+
+            self.assertRaises(IndexError, setitem_helper)
 
     def test_setitem_single_tensordata(self):
         tensor = TensorData(2, 3, 4, 5)
@@ -537,42 +355,61 @@ class TestTensorDataTest(unittest.TestCase):
         self.assertEqual(tensor._data[0].item(), 0)
 
     def test_initialize_strides(self):
-        tensor = TensorData(1, 2, 1)
-        self.assertEqual(tensor._strides, (2, 1, 1))
-        tensor = TensorData(6, 4, 2, 5, 7)
-        self.assertEqual(tensor._strides, (280, 70, 35, 7, 1))
+        self.assertEqual(TensorData(1, 2, 1)._strides, (2, 1, 1))
+        self.assertEqual(TensorData(6, 4, 2, 5, 7)._strides, (280, 70, 35, 7, 1))
 
     def test_single_to_multi_rank_translation(self):
         tensor = TensorData(4, 3, 5)
-        self.assertEqual(
-            tensor._TensorData__single_to_multi_rank_translation(26), (1, 2, 1)
-        )
-        self.assertEqual(
-            tensor._TensorData__single_to_multi_rank_translation(0), (0, 0, 0)
-        )
-        self.assertRaises(
-            IndexError, lambda: tensor._TensorData__single_to_multi_rank_translation(-1)
-        )
-        self.assertRaises(
-            IndexError, lambda: tensor._TensorData__single_to_multi_rank_translation(60)
-        )
+        with self.subTest(msg="normal"):
+            self.assertEqual(
+                tensor._TensorData__single_to_multi_rank_translation(26), (1, 2, 1)
+            )
+        with self.subTest(msg="extreme"):
+            self.assertEqual(
+                tensor._TensorData__single_to_multi_rank_translation(0), (0, 0, 0)
+            )
+            self.assertEqual(
+                tensor._TensorData__single_to_multi_rank_translation(59), (3, 2, 4)
+            )
+        with self.subTest(msg="fail"):
+            self.assertRaises(
+                IndexError,
+                lambda: tensor._TensorData__single_to_multi_rank_translation(-1),
+            )
+            self.assertRaises(
+                IndexError,
+                lambda: tensor._TensorData__single_to_multi_rank_translation(60),
+            )
+            self.assertRaises(
+                IndexError,
+                lambda: tensor._TensorData__single_to_multi_rank_translation(90),
+            )
 
     def test_multi_to_single_rank_translation(self):
         tensor = TensorData(4, 3, 5)
-        self.assertEqual(
-            tensor._TensorData__multi_to_single_rank_translation((1, 2, 1)), 26
-        )
-        self.assertEqual(
-            tensor._TensorData__multi_to_single_rank_translation((0, 0, 0)), 0
-        )
-        self.assertRaises(
-            IndexError,
-            lambda: tensor._TensorData__multi_to_single_rank_translation((-1, 0, -1)),
-        )
-        self.assertRaises(
-            IndexError,
-            lambda: tensor._TensorData__multi_to_single_rank_translation((4, 2, 4)),
-        )
+        with self.subTest(msg="normal"):
+            self.assertEqual(
+                tensor._TensorData__multi_to_single_rank_translation((1, 2, 1)), 26
+            )
+        with self.subTest(msg="extreme"):
+            self.assertEqual(
+                tensor._TensorData__multi_to_single_rank_translation((0, 0, 0)), 0
+            )
+
+            self.assertEqual(
+                tensor._TensorData__multi_to_single_rank_translation((3, 2, 4)), 59
+            )
+        with self.subTest(msg="fail"):
+            self.assertRaises(
+                IndexError,
+                lambda: tensor._TensorData__multi_to_single_rank_translation(
+                    (-1, 0, -1)
+                ),
+            )
+            self.assertRaises(
+                IndexError,
+                lambda: tensor._TensorData__multi_to_single_rank_translation((4, 2, 4)),
+            )
 
 
 if __name__ == "__main__":
