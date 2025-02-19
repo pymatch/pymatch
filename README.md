@@ -11,7 +11,7 @@ A pure-Python, PyTorch-like automatic differentiation library for education.
 
 </div>
 
-Work on an updated version of this library can be found [here at pymatch/pymatch](https://github.com/pymatch/pymatch).
+Work on an updated version of this library can be found [in the c-extension branch](https://github.com/pymatch/pymatch/tree/experiment/c-extension).
 
 # File Structure
 
