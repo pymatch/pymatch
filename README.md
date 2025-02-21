@@ -23,7 +23,7 @@ Work on an updated version of this library can be found [in the c-extension bran
 │  ├── matrix.py        # │  ├── a 2D matrix class (including automatic differentiation)
 │  └── nn.py            # │  └── higher-level neural network functionality
 ├── demo_linear.ipynb   # ├── A linear model demo (Jupyter)
-├── demo_linear.py      # ├── A linear model demo (script)
+├── demo_neuron.py      # ├── A single neuron demo (Python script)
 ├── test.py             # ├── Unit-tests for correctness
 ├── LICENSE             # ├── MIT License
 └── README.md           # └── This document
