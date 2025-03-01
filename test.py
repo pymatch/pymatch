@@ -38,58 +38,6 @@ def neuron(a, w, b, relu=True):
 
 
 class TestMatch(unittest.TestCase):
-    def test_3layer(self):
-        """Test the output and gradient of a three layer network."""
-
-        N = 5
-        n0 = 4
-        n1 = 3
-        n2 = 6
-        n3 = 1
-
-        # Fake input and output
-        x = mat_and_ten(N, n0)
-        y = mat_and_ten(N, 1)
-
-        # Parameters
-        W = []
-        b = []
-
-        # Layer 1
-        W.append(mat_and_ten(n1, n0))
-        b.append(mat_and_ten(n1, 1))
-
-        # Layer 2
-        W.append(mat_and_ten(n2, n1))
-        b.append(mat_and_ten(n2, 1))
-
-        # Layer 3
-        W.append(mat_and_ten(n3, n2))
-        b.append(mat_and_ten(n3, 1))
-
-        # Forward
-        mat_a, ten_a = x
-        for i, ((mat_W, ten_W), (mat_b, ten_b)) in enumerate(zip(W, b)):
-            mat_z, mat_a = neuron(mat_a, mat_W, mat_b, relu=(i < len(W) - 1))
-            ten_z, ten_a = neuron(ten_a, ten_W, ten_b, relu=(i < len(W) - 1))
-            self.assertTrue(almostEqual(mat_z, ten_z))
-            self.assertTrue(almostEqual(mat_a, ten_a))
-
-        # MSE Loss
-        mat_y, ten_y = y
-        mat_loss = ((mat_a - mat_y) ** 2).mean()
-        ten_loss = ((ten_a - ten_y) ** 2).mean()
-        self.assertTrue(almostEqual(mat_loss, ten_loss))
-
-        # Backward
-        mat_loss.backward()
-        ten_loss.backward()
-
-        # Check all gradients (even input and output)
-        grads = [y] + W + b + [x]
-        for mat_g, ten_g in grads:
-            self.assertTrue(almostEqual(mat_g, ten_g, check_grad=True))
-
     def test_arithmetic(self):
         """Test the output and gradient of arbitrary arithmetic."""
 
@@ -141,6 +89,30 @@ class TestMatch(unittest.TestCase):
         torch_mean.backward()
     
         self.assertTrue(almostEqual(match_tensor, torch_tensor, check_grad=True))
+
+    def test_mse(self):
+        """Test the MSE loss function."""
+        match_mse = match.nn.MSELoss()
+        torch_mse = torch.nn.MSELoss()
+    
+        match_y, torch_y = mat_and_ten(4, 3)
+        match_yhat, torch_yhat = mat_and_ten(4, 3)
+    
+        # Check forward
+        match_mse_output = match_mse(match_y, match_yhat)
+        torch_mse_output = torch_mse(torch_y, torch_yhat)
+        self.assertTrue(almostEqual(match_mse_output, torch_mse_output))
+    
+        # Check backward
+        mtest = match_mse_output.mean()
+        mtest.backward()
+    
+        ttest = torch_mse_output.mean()
+        ttest.backward()
+    
+        # Note: outputs really shouldn't have derivatives, but we can still test them here
+        self.assertTrue(almostEqual(match_y, torch_y, check_grad=True))
+        self.assertTrue(almostEqual(match_yhat, torch_yhat, check_grad=True))
 
     def test_nn(self):
         """Test the neural network layer objects."""
@@ -225,6 +197,58 @@ class TestMatch(unittest.TestCase):
 
         for mparam, tparam in zip(match_net.parameters(), torch_net.parameters()):
             self.assertTrue(almostEqual(mparam, tparam, check_grad=True))
+
+    def test_3layer(self):
+        """Test the output and gradient of a three layer network."""
+
+        N = 5
+        n0 = 4
+        n1 = 3
+        n2 = 6
+        n3 = 1
+
+        # Fake input and output
+        x = mat_and_ten(N, n0)
+        y = mat_and_ten(N, 1)
+
+        # Parameters
+        W = []
+        b = []
+
+        # Layer 1
+        W.append(mat_and_ten(n1, n0))
+        b.append(mat_and_ten(n1, 1))
+
+        # Layer 2
+        W.append(mat_and_ten(n2, n1))
+        b.append(mat_and_ten(n2, 1))
+
+        # Layer 3
+        W.append(mat_and_ten(n3, n2))
+        b.append(mat_and_ten(n3, 1))
+
+        # Forward
+        mat_a, ten_a = x
+        for i, ((mat_W, ten_W), (mat_b, ten_b)) in enumerate(zip(W, b)):
+            mat_z, mat_a = neuron(mat_a, mat_W, mat_b, relu=(i < len(W) - 1))
+            ten_z, ten_a = neuron(ten_a, ten_W, ten_b, relu=(i < len(W) - 1))
+            self.assertTrue(almostEqual(mat_z, ten_z))
+            self.assertTrue(almostEqual(mat_a, ten_a))
+
+        # MSE Loss
+        mat_y, ten_y = y
+        mat_loss = ((mat_a - mat_y) ** 2).mean()
+        ten_loss = ((ten_a - ten_y) ** 2).mean()
+        self.assertTrue(almostEqual(mat_loss, ten_loss))
+
+        # Backward
+        mat_loss.backward()
+        ten_loss.backward()
+
+        # Check all gradients (even input and output)
+        grads = [y] + W + b + [x]
+        for mat_g, ten_g in grads:
+            self.assertTrue(almostEqual(mat_g, ten_g, check_grad=True))
 
 
 if __name__ == "__main__":
