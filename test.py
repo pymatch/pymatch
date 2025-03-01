@@ -121,6 +121,27 @@ class TestMatch(unittest.TestCase):
         self.assertTrue(almostEqual(mat1, ten1, check_grad=True))
         self.assertTrue(almostEqual(mat2, ten2, check_grad=True))
 
+    def test_relu(self):
+        """Test the relu activation function."""
+        match_relu = match.nn.ReLU()
+        torch_relu = torch.nn.ReLU()
+    
+        match_tensor, torch_tensor = mat_and_ten(31, 17)
+    
+        # Check forward
+        match_relu_output = match_relu(match_tensor)
+        torch_relu_output = torch_relu(torch_tensor)
+        self.assertTrue(almostEqual(match_relu_output, torch_relu_output))
+    
+        # Check backward
+        match_mean = match_relu_output.mean()
+        match_mean.backward()
+    
+        torch_mean = torch_relu_output.mean()
+        torch_mean.backward()
+    
+        self.assertTrue(almostEqual(match_tensor, torch_tensor, check_grad=True))
+
     def test_nn(self):
         """Test the neural network layer objects."""
         N, n0, n1 = 7, 10, 14
