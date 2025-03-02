@@ -163,6 +163,18 @@ class Matrix(object):
         result._gradient = _gradient
         return result
 
+    def abs(self) -> Matrix:
+        """Return the absolute value of all values across both dimensions."""
+        result = Matrix(self.data.abs(), children=(self,))
+
+        def _gradient() -> None:
+            info(f"Gradient of absolute value. Shape: {self.shape}")
+            self.grad += (self.data > 0) * result.grad
+            self.grad += -1 * (self.data <= 0) * result.grad
+
+        result._gradient = _gradient
+        return result
+
     def relu(self) -> Matrix:
         """Element-wise rectified linear unit (ReLU)."""
         result = Matrix(self.data.relu(), children=(self,))
@@ -171,6 +183,34 @@ class Matrix(object):
             info(f"Gradient of ReLU. Shape: {self.shape}")
             self.grad += (result.data > 0) * result.grad
 
+        result._gradient = _gradient
+        return result
+
+    def leakyrelu(self) -> Matrix:
+        """Element-wise Leaky Rectified Linear Unit (LeaklyReLu)"""
+        result = Matrix(self.data.leakyrelu(), children=(self,))
+
+        def _gradient() -> None:
+            info(f"Gradient of LeakyReLu. Shape: {self.shape}")
+            self.grad += (result.data > 0) * result.grad
+            self.grad += (0.1 * (result.data <= 0)) * result.grad
+
+        result._gradient = _gradient
+        return result
+
+    def abs(self) -> Matrix:
+        result = Matrix(self.data.abs(), children = (self,))
+
+        def _gradient() -> None:
+            info(f"Gradient of LeakyReLu. Shape: {self.shape}")
+
+            for i in range(self.nrow):
+                for j in range(self.ncol):
+                    if self.data.vals[i][j] > 0:
+                        self.grad.vals[i][j] += result.grad.vals[i][j]
+                    elif self.data.vals[i][j] < 0:
+                        self.grad.vals[i][j] -= result.grad.vals[i][j]
+ 
         result._gradient = _gradient
         return result
 

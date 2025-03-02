@@ -87,6 +87,14 @@ class List2D(object):
         """Compute the mean of all values in the matrix."""
         return self.sum() / (self.nrow * self.ncol)
 
+    def abs(self) -> List2D:
+        """Compute the absolute value of each entry of the matrix"""
+        vals = [
+            [abs(self.vals[i][j]) for j in range(self.ncol)]
+            for i in range(self.nrow)
+        ]
+        return List2D(*self.shape, vals)
+
     def relu(self) -> List2D:
         """Return a new List2D object with the ReLU of each element."""
         vals = [
@@ -95,6 +103,23 @@ class List2D(object):
         ]
         return List2D(*self.shape, vals)
 
+    def leakyrelu(self) -> List2D:
+        """Return a new List 2D object with the LeakyReLU of each element."""
+        vals = [
+            [max(0.1 * self.vals[i][j], self.vals[i][j]) for j in range(self.ncol)]
+            for i in range(self.nrow)
+        ]
+        return List2D(*self.shape, vals)
+
+    def abs(self) -> List2D:
+        """Return a new List 2D object with the abs of each element."""
+        vals = [
+            [abs(self.vals[i][j]) for j in range(self.ncol)]
+            for i in range(self.nrow)
+        ]
+        return List2D(*self.shape, vals)
+    
+        
     def sigmoid(self) -> List2D:
         """Return a new List2D object with the sigmoid of each element."""
         vals = [
@@ -238,3 +263,7 @@ class List2D(object):
     def __gt__(self, rhs: float | int | List2D) -> List2D:
         """Element-wise comparison: self > rhs."""
         return self.__binary_op(gt, rhs)
+
+    def __le__(self, rhs: float | int | List2D) -> List2D:
+        """Element-wise comparison: self <= rhs."""
+        return self.__binary_op(le, rhs)
